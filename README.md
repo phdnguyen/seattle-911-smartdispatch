@@ -7,7 +7,7 @@ The dataset is publicly available on the [Seattle Open Data Portal](https://data
 Data used for this project is last updated on October 18th, 2025 and has 10.5M rows.
 
 ## Environment Set-up
-conda create --name <env> --file environment.yml
+conda create --name `<env>` --file environment.yml
 
 ## Directory Tree
 
