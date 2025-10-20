@@ -14,22 +14,26 @@ conda create --name `<env>` --file environment.yml
 ```
 .
 ├── data
-│   ├── processed
-│   └── raw
-│       └── Call_Data_20251019.csv
+│   ├── processed
+│   └── raw
+│       └── Call_Data_20251019.csv
 ├── environment.yml
 ├── notebooks
-│   ├── 01_exploration.ipynb
-│   ├── 02_modeling.ipynb
-│   └── 03_visualization.ipynb
+│   ├── 01_exploration.ipynb
+│   ├── 02_modeling.ipynb
+│   └── 03_visualization.ipynb
 ├── README.md
 ├── reports
-│   ├── progress_report
-│   └── proposal
-│       └── team102proposal.pdf
+│   ├── progress_report
+│   └── proposal
+│       └── team102proposal.pdf
 └── src
     ├── config.py
-    ├── modeling.py
+    ├── models
+    │   ├── model_1.py
+    │   └── model_4.py
     ├── preprocessing.py
-    └── visualization.py
+    └── visualizations
+        ├── visualization_1.py
+        └── visualization_4.py
 ```
