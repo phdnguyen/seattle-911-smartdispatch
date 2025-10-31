@@ -18,7 +18,7 @@ group by initial_call_type
 
 initial_pseudo_priority_ii as (
 select 
-case WHEN initial_call_type LIKE 'ALARM%' THEN 'ALARM'
+case when initial_call_type LIKE 'ALARM%' THEN 'ALARM'
 WHEN initial_call_type LIKE 'ASLT%' OR initial_call_type LIKE 'ASSAULT%' THEN 'ASSAULT'
 WHEN initial_call_type LIKE 'ANIMAL%' THEN 'ANIMAL'
 when initial_call_type like 'ASSIGNED DUTY%' then 'ASSIGNED'
@@ -451,8 +451,9 @@ left join final_pseudo_priority_i d
 on a.final_call_type = d.final_call_type_i
 left join final_pseudo_priority_ii e
 on a.final_call_type_mapping = e.final_call_type_mapping_ii
-) -- 10,418,709
+), -- 10,418,709
 
+agg_data_iii as (
 select
 cad_event_number
 ,cad_event_clearance_description
@@ -508,7 +509,34 @@ cad_event_number
 ,dispatch_address
 ,count_of_officers
 ,pseudo_priority_score
-into gt.dbo.call_data_20251019_processed_v3
 from agg_data_ii
 where rnk = 1
 and cad_event_original_time_queued_date >= '2023-10-27'
+), -- 641,904
+
+quartiles AS (
+SELECT 
+PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY call_sign_total_service_time_s) OVER () AS Q1,
+PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY call_sign_total_service_time_s) OVER () AS Q3
+FROM agg_data_iii
+WHERE call_sign_total_service_time_s IS NOT NULL
+),
+
+IQR_Calc AS (
+SELECT TOP 1
+Q1,
+Q3,
+(Q3 - Q1) AS IQR,
+(Q1 - 1.5 * (Q3 - Q1)) AS LowerBound,
+(Q3 + 1.5 * (Q3 - Q1)) AS UpperBound
+FROM Quartiles
+)
+
+SELECT 
+*
+into gt.dbo.call_data_20251019_processed_v4
+FROM agg_data_iii t
+WHERE t.call_sign_total_service_time_s IS NOT NULL
+AND t.call_sign_total_service_time_s >= (SELECT LowerBound FROM IQR_Calc)
+AND t.call_sign_total_service_time_s <= (SELECT UpperBound FROM IQR_Calc)
+-- 583,022
