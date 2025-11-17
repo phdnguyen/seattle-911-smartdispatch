@@ -18,6 +18,75 @@ group by initial_call_type
 
 initial_pseudo_priority_ii as (
 select 
+case when initial_call_type LIKE 'ALARM%' THEN 'ALARM'
+WHEN initial_call_type LIKE 'ASLT%' OR initial_call_type LIKE 'ASSAULT%' THEN 'ASSAULT'
+WHEN initial_call_type LIKE 'ANIMAL%' THEN 'ANIMAL'
+when initial_call_type like 'ASSIGNED DUTY%' then 'ASSIGNED'
+when initial_call_type like 'ASSIST%' then 'ASSIST'
+when initial_call_type like 'AUTO%' or initial_call_type like 'CAR%' or initial_call_type like 'MVC%' then 'AUTO'
+WHEN initial_call_type LIKE 'BOMB%' THEN 'BOMB'
+WHEN initial_call_type LIKE 'BURG%' THEN 'BURG'
+WHEN initial_call_type LIKE 'CHILD%' THEN 'CHILD'
+WHEN initial_call_type LIKE 'DV%' THEN 'DV'
+WHEN initial_call_type LIKE 'FIGHT%' THEN 'FIGHT'
+WHEN initial_call_type LIKE 'HARBOR%' THEN 'HARBOR'
+WHEN initial_call_type LIKE 'JUVENILE%' THEN 'JUVENILE'
+WHEN initial_call_type LIKE 'LIQUOR%' THEN 'LIQUOR'
+WHEN initial_call_type LIKE 'MISSING%' THEN 'MISSING'
+WHEN initial_call_type LIKE 'NARCOTICS%' THEN 'NARCOTICS'
+WHEN initial_call_type LIKE 'NOISE%' THEN 'NOISE'
+WHEN initial_call_type LIKE 'OBS%' THEN 'OBS'
+WHEN initial_call_type LIKE 'ORDER%' THEN 'ORDER'
+WHEN initial_call_type LIKE 'OUT%' THEN 'OUT'
+WHEN initial_call_type LIKE 'PERSON%' THEN 'PERSON'
+WHEN initial_call_type LIKE 'PROPERTY%' THEN 'PROPERTY'
+WHEN initial_call_type LIKE 'ROBBERY%' THEN 'ROBBERY'
+WHEN initial_call_type LIKE 'SHOT%' THEN 'SHOT'
+WHEN initial_call_type LIKE 'SUICIDE%' THEN 'SUICIDE'
+WHEN initial_call_type LIKE 'SUSPICIOUS%' THEN 'SUSPICIOUS'
+WHEN initial_call_type LIKE 'THEFT%' THEN 'THEFT'
+WHEN initial_call_type LIKE 'THREAT%' THEN 'THREAT'
+WHEN initial_call_type LIKE 'TRAF%' THEN 'TRAF'
+WHEN initial_call_type LIKE 'TRU%' THEN 'TRU'
+WHEN initial_call_type LIKE 'UNKNOWN%' THEN 'UNKNOWN'
+WHEN initial_call_type LIKE 'WARRANT%' THEN 'WARRANT'
+WHEN initial_call_type LIKE 'WEAP%' THEN 'WEAP'
+else initial_call_type end as initial_call_type_mapping_ii,
+(sum(ph) / sum(cnt)) as initial_pseudo_priority_ii
+from initial
+group by case WHEN initial_call_type LIKE 'ALARM%' THEN 'ALARM'
+WHEN initial_call_type LIKE 'ASLT%' OR initial_call_type LIKE 'ASSAULT%' THEN 'ASSAULT'
+WHEN initial_call_type LIKE 'ANIMAL%' THEN 'ANIMAL'
+when initial_call_type like 'ASSIGNED DUTY%' then 'ASSIGNED'
+when initial_call_type like 'ASSIST%' then 'ASSIST'
+when initial_call_type like 'AUTO%' or initial_call_type like 'CAR%' or initial_call_type like 'MVC%' then 'AUTO'
+WHEN initial_call_type LIKE 'BOMB%' THEN 'BOMB'
+WHEN initial_call_type LIKE 'BURG%' THEN 'BURG'
+WHEN initial_call_type LIKE 'CHILD%' THEN 'CHILD'
+WHEN initial_call_type LIKE 'DV%' THEN 'DV'
+WHEN initial_call_type LIKE 'FIGHT%' THEN 'FIGHT'
+WHEN initial_call_type LIKE 'HARBOR%' THEN 'HARBOR'
+WHEN initial_call_type LIKE 'JUVENILE%' THEN 'JUVENILE'
+WHEN initial_call_type LIKE 'LIQUOR%' THEN 'LIQUOR'
+WHEN initial_call_type LIKE 'MISSING%' THEN 'MISSING'
+WHEN initial_call_type LIKE 'NARCOTICS%' THEN 'NARCOTICS'
+WHEN initial_call_type LIKE 'NOISE%' THEN 'NOISE'
+WHEN initial_call_type LIKE 'OBS%' THEN 'OBS'
+WHEN initial_call_type LIKE 'ORDER%' THEN 'ORDER'
+WHEN initial_call_type LIKE 'OUT%' THEN 'OUT'
+WHEN initial_call_type LIKE 'PERSON%' THEN 'PERSON'
+WHEN initial_call_type LIKE 'PROPERTY%' THEN 'PROPERTY'
+WHEN initial_call_type LIKE 'ROBBERY%' THEN 'ROBBERY'
+WHEN initial_call_type LIKE 'SHOT%' THEN 'SHOT'
+WHEN initial_call_type LIKE 'SUICIDE%' THEN 'SUICIDE'
+WHEN initial_call_type LIKE 'SUSPICIOUS%' THEN 'SUSPICIOUS'
+WHEN initial_call_type LIKE 'THEFT%' THEN 'THEFT'
+WHEN initial_call_type LIKE 'THREAT%' THEN 'THREAT'
+WHEN initial_call_type LIKE 'TRAF%' THEN 'TRAF'
+WHEN initial_call_type LIKE 'TRU%' THEN 'TRU'
+WHEN initial_call_type LIKE 'UNKNOWN%' THEN 'UNKNOWN'
+WHEN initial_call_type LIKE 'WARRANT%' THEN 'WARRANT'
+WHEN initial_call_type LIKE 'WEAP%' THEN 'WEAP'
 case WHEN initial_call_type LIKE 'ALARM%' THEN 'ALARM'
 WHEN initial_call_type LIKE 'ASLT%' OR initial_call_type LIKE 'ASSAULT%' THEN 'ASSAULT'
 WHEN initial_call_type LIKE 'ANIMAL%' THEN 'ANIMAL'
@@ -110,6 +179,75 @@ group by final_call_type
 
 final_pseudo_priority_ii as (
 select 
+case WHEN final_call_type LIKE 'ALARM%' THEN 'ALARM'
+WHEN final_call_type LIKE 'ASLT%' OR final_call_type LIKE 'ASSAULT%' THEN 'ASSAULT'
+WHEN final_call_type LIKE 'ANIMAL%' THEN 'ANIMAL'
+when final_call_type like 'ASSIGNED DUTY%' then 'ASSIGNED'
+when final_call_type like 'ASSIST%' then 'ASSIST'
+when final_call_type like 'AUTO%' or final_call_type like 'CAR%' or final_call_type like 'MVC%' then 'AUTO'
+WHEN final_call_type LIKE 'BOMB%' THEN 'BOMB'
+WHEN final_call_type LIKE 'BURG%' THEN 'BURG'
+WHEN final_call_type LIKE 'CHILD%' THEN 'CHILD'
+WHEN final_call_type LIKE 'DV%' THEN 'DV'
+WHEN final_call_type LIKE 'FIGHT%' THEN 'FIGHT'
+WHEN final_call_type LIKE 'HARBOR%' THEN 'HARBOR'
+WHEN final_call_type LIKE 'JUVENILE%' THEN 'JUVENILE'
+WHEN final_call_type LIKE 'LIQUOR%' THEN 'LIQUOR'
+WHEN final_call_type LIKE 'MISSING%' THEN 'MISSING'
+WHEN final_call_type LIKE 'NARCOTICS%' THEN 'NARCOTICS'
+WHEN final_call_type LIKE 'NOISE%' THEN 'NOISE'
+WHEN final_call_type LIKE 'OBS%' THEN 'OBS'
+WHEN final_call_type LIKE 'ORDER%' THEN 'ORDER'
+WHEN final_call_type LIKE 'OUT%' THEN 'OUT'
+WHEN final_call_type LIKE 'PERSON%' THEN 'PERSON'
+WHEN final_call_type LIKE 'PROPERTY%' THEN 'PROPERTY'
+WHEN final_call_type LIKE 'ROBBERY%' THEN 'ROBBERY'
+WHEN final_call_type LIKE 'SHOT%' THEN 'SHOT'
+WHEN final_call_type LIKE 'SUICIDE%' THEN 'SUICIDE'
+WHEN final_call_type LIKE 'SUSPICIOUS%' THEN 'SUSPICIOUS'
+WHEN final_call_type LIKE 'THEFT%' THEN 'THEFT'
+WHEN final_call_type LIKE 'THREAT%' THEN 'THREAT'
+WHEN final_call_type LIKE 'TRAF%' THEN 'TRAF'
+WHEN final_call_type LIKE 'TRU%' THEN 'TRU'
+WHEN final_call_type LIKE 'UNKNOWN%' THEN 'UNKNOWN'
+WHEN final_call_type LIKE 'WARRANT%' THEN 'WARRANT'
+WHEN final_call_type LIKE 'WEAP%' THEN 'WEAP'
+else final_call_type end as final_call_type_mapping_ii,
+(sum(ph) / sum(cnt)) as final_pseudo_priority_ii
+from final
+group by case WHEN final_call_type LIKE 'ALARM%' THEN 'ALARM'
+WHEN final_call_type LIKE 'ASLT%' OR final_call_type LIKE 'ASSAULT%' THEN 'ASSAULT'
+WHEN final_call_type LIKE 'ANIMAL%' THEN 'ANIMAL'
+when final_call_type like 'ASSIGNED DUTY%' then 'ASSIGNED'
+when final_call_type like 'ASSIST%' then 'ASSIST'
+when final_call_type like 'AUTO%' or final_call_type like 'CAR%' or final_call_type like 'MVC%' then 'AUTO'
+WHEN final_call_type LIKE 'BOMB%' THEN 'BOMB'
+WHEN final_call_type LIKE 'BURG%' THEN 'BURG'
+WHEN final_call_type LIKE 'CHILD%' THEN 'CHILD'
+WHEN final_call_type LIKE 'DV%' THEN 'DV'
+WHEN final_call_type LIKE 'FIGHT%' THEN 'FIGHT'
+WHEN final_call_type LIKE 'HARBOR%' THEN 'HARBOR'
+WHEN final_call_type LIKE 'JUVENILE%' THEN 'JUVENILE'
+WHEN final_call_type LIKE 'LIQUOR%' THEN 'LIQUOR'
+WHEN final_call_type LIKE 'MISSING%' THEN 'MISSING'
+WHEN final_call_type LIKE 'NARCOTICS%' THEN 'NARCOTICS'
+WHEN final_call_type LIKE 'NOISE%' THEN 'NOISE'
+WHEN final_call_type LIKE 'OBS%' THEN 'OBS'
+WHEN final_call_type LIKE 'ORDER%' THEN 'ORDER'
+WHEN final_call_type LIKE 'OUT%' THEN 'OUT'
+WHEN final_call_type LIKE 'PERSON%' THEN 'PERSON'
+WHEN final_call_type LIKE 'PROPERTY%' THEN 'PROPERTY'
+WHEN final_call_type LIKE 'ROBBERY%' THEN 'ROBBERY'
+WHEN final_call_type LIKE 'SHOT%' THEN 'SHOT'
+WHEN final_call_type LIKE 'SUICIDE%' THEN 'SUICIDE'
+WHEN final_call_type LIKE 'SUSPICIOUS%' THEN 'SUSPICIOUS'
+WHEN final_call_type LIKE 'THEFT%' THEN 'THEFT'
+WHEN final_call_type LIKE 'THREAT%' THEN 'THREAT'
+WHEN final_call_type LIKE 'TRAF%' THEN 'TRAF'
+WHEN final_call_type LIKE 'TRU%' THEN 'TRU'
+WHEN final_call_type LIKE 'UNKNOWN%' THEN 'UNKNOWN'
+WHEN final_call_type LIKE 'WARRANT%' THEN 'WARRANT'
+WHEN final_call_type LIKE 'WEAP%' THEN 'WEAP'
 case WHEN final_call_type LIKE 'ALARM%' THEN 'ALARM'
 WHEN final_call_type LIKE 'ASLT%' OR final_call_type LIKE 'ASSAULT%' THEN 'ASSAULT'
 WHEN final_call_type LIKE 'ANIMAL%' THEN 'ANIMAL'
@@ -360,6 +498,75 @@ WHEN final_call_type LIKE 'TRU%' THEN 'TRU'
 WHEN final_call_type LIKE 'UNKNOWN%' THEN 'UNKNOWN'
 WHEN final_call_type LIKE 'WARRANT%' THEN 'WARRANT'
 WHEN final_call_type LIKE 'WEAP%' THEN 'WEAP'
+case WHEN initial_call_type LIKE 'ALARM%' THEN 'ALARM'
+WHEN initial_call_type LIKE 'ASLT%' OR initial_call_type LIKE 'ASSAULT%' THEN 'ASSAULT'
+WHEN initial_call_type LIKE 'ANIMAL%' THEN 'ANIMAL'
+when initial_call_type like 'ASSIGNED DUTY%' then 'ASSIGNED'
+when initial_call_type like 'ASSIST%' then 'ASSIST'
+when initial_call_type like 'AUTO%' or initial_call_type like 'CAR%' or initial_call_type like 'MVC%' then 'AUTO'
+WHEN initial_call_type LIKE 'BOMB%' THEN 'BOMB'
+WHEN initial_call_type LIKE 'BURG%' THEN 'BURG'
+WHEN initial_call_type LIKE 'CHILD%' THEN 'CHILD'
+WHEN initial_call_type LIKE 'DV%' THEN 'DV'
+WHEN initial_call_type LIKE 'FIGHT%' THEN 'FIGHT'
+WHEN initial_call_type LIKE 'HARBOR%' THEN 'HARBOR'
+WHEN initial_call_type LIKE 'JUVENILE%' THEN 'JUVENILE'
+WHEN initial_call_type LIKE 'LIQUOR%' THEN 'LIQUOR'
+WHEN initial_call_type LIKE 'MISSING%' THEN 'MISSING'
+WHEN initial_call_type LIKE 'NARCOTICS%' THEN 'NARCOTICS'
+WHEN initial_call_type LIKE 'NOISE%' THEN 'NOISE'
+WHEN initial_call_type LIKE 'OBS%' THEN 'OBS'
+WHEN initial_call_type LIKE 'ORDER%' THEN 'ORDER'
+WHEN initial_call_type LIKE 'OUT%' THEN 'OUT'
+WHEN initial_call_type LIKE 'PERSON%' THEN 'PERSON'
+WHEN initial_call_type LIKE 'PROPERTY%' THEN 'PROPERTY'
+WHEN initial_call_type LIKE 'ROBBERY%' THEN 'ROBBERY'
+WHEN initial_call_type LIKE 'SHOT%' THEN 'SHOT'
+WHEN initial_call_type LIKE 'SUICIDE%' THEN 'SUICIDE'
+WHEN initial_call_type LIKE 'SUSPICIOUS%' THEN 'SUSPICIOUS'
+WHEN initial_call_type LIKE 'THEFT%' THEN 'THEFT'
+WHEN initial_call_type LIKE 'THREAT%' THEN 'THREAT'
+WHEN initial_call_type LIKE 'TRAF%' THEN 'TRAF'
+WHEN initial_call_type LIKE 'TRU%' THEN 'TRU'
+WHEN initial_call_type LIKE 'UNKNOWN%' THEN 'UNKNOWN'
+WHEN initial_call_type LIKE 'WARRANT%' THEN 'WARRANT'
+WHEN initial_call_type LIKE 'WEAP%' THEN 'WEAP'
+else initial_call_type end as initial_call_type_mapping,
+
+final_call_type,
+case WHEN final_call_type LIKE 'ALARM%' THEN 'ALARM'
+WHEN final_call_type LIKE 'ASLT%' OR final_call_type LIKE 'ASSAULT%' THEN 'ASSAULT'
+WHEN final_call_type LIKE 'ANIMAL%' THEN 'ANIMAL'
+when final_call_type like 'ASSIGNED DUTY%' then 'ASSIGNED'
+when final_call_type like 'ASSIST%' then 'ASSIST'
+when final_call_type like 'AUTO%' or final_call_type like 'CAR%' or final_call_type like 'MVC%' then 'AUTO'
+WHEN final_call_type LIKE 'BOMB%' THEN 'BOMB'
+WHEN final_call_type LIKE 'BURG%' THEN 'BURG'
+WHEN final_call_type LIKE 'CHILD%' THEN 'CHILD'
+WHEN final_call_type LIKE 'DV%' THEN 'DV'
+WHEN final_call_type LIKE 'FIGHT%' THEN 'FIGHT'
+WHEN final_call_type LIKE 'HARBOR%' THEN 'HARBOR'
+WHEN final_call_type LIKE 'JUVENILE%' THEN 'JUVENILE'
+WHEN final_call_type LIKE 'LIQUOR%' THEN 'LIQUOR'
+WHEN final_call_type LIKE 'MISSING%' THEN 'MISSING'
+WHEN final_call_type LIKE 'NARCOTICS%' THEN 'NARCOTICS'
+WHEN final_call_type LIKE 'NOISE%' THEN 'NOISE'
+WHEN final_call_type LIKE 'OBS%' THEN 'OBS'
+WHEN final_call_type LIKE 'ORDER%' THEN 'ORDER'
+WHEN final_call_type LIKE 'OUT%' THEN 'OUT'
+WHEN final_call_type LIKE 'PERSON%' THEN 'PERSON'
+WHEN final_call_type LIKE 'PROPERTY%' THEN 'PROPERTY'
+WHEN final_call_type LIKE 'ROBBERY%' THEN 'ROBBERY'
+WHEN final_call_type LIKE 'SHOT%' THEN 'SHOT'
+WHEN final_call_type LIKE 'SUICIDE%' THEN 'SUICIDE'
+WHEN final_call_type LIKE 'SUSPICIOUS%' THEN 'SUSPICIOUS'
+WHEN final_call_type LIKE 'THEFT%' THEN 'THEFT'
+WHEN final_call_type LIKE 'THREAT%' THEN 'THREAT'
+WHEN final_call_type LIKE 'TRAF%' THEN 'TRAF'
+WHEN final_call_type LIKE 'TRU%' THEN 'TRU'
+WHEN final_call_type LIKE 'UNKNOWN%' THEN 'UNKNOWN'
+WHEN final_call_type LIKE 'WARRANT%' THEN 'WARRANT'
+WHEN final_call_type LIKE 'WEAP%' THEN 'WEAP'
 else final_call_type end as final_call_type_mapping,
 
 cad_event_original_time_queued,
@@ -451,6 +658,9 @@ left join final_pseudo_priority_i d
 on a.final_call_type = d.final_call_type_i
 left join final_pseudo_priority_ii e
 on a.final_call_type_mapping = e.final_call_type_mapping_ii
+), -- 10,418,709
+
+agg_data_iii as (
 ) -- 10,418,709
 
 select
@@ -508,6 +718,37 @@ cad_event_number
 ,dispatch_address
 ,count_of_officers
 ,pseudo_priority_score
+from agg_data_ii
+where rnk = 1
+and cad_event_original_time_queued_date >= '2023-10-27'
+), -- 641,904
+
+quartiles AS (
+SELECT 
+PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY call_sign_total_service_time_s) OVER () AS Q1,
+PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY call_sign_total_service_time_s) OVER () AS Q3
+FROM agg_data_iii
+WHERE call_sign_total_service_time_s IS NOT NULL
+),
+
+IQR_Calc AS (
+SELECT TOP 1
+Q1,
+Q3,
+(Q3 - Q1) AS IQR,
+(Q1 - 1.5 * (Q3 - Q1)) AS LowerBound,
+(Q3 + 1.5 * (Q3 - Q1)) AS UpperBound
+FROM Quartiles
+)
+
+SELECT 
+*
+into gt.dbo.call_data_20251019_processed_v4
+FROM agg_data_iii t
+WHERE t.call_sign_total_service_time_s IS NOT NULL
+AND t.call_sign_total_service_time_s >= (SELECT LowerBound FROM IQR_Calc)
+AND t.call_sign_total_service_time_s <= (SELECT UpperBound FROM IQR_Calc)
+-- 583,022
 into gt.dbo.call_data_20251019_processed_v3
 from agg_data_ii
 where rnk = 1
