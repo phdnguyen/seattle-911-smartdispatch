@@ -14,26 +14,24 @@ conda create --name `<env>` --file environment.yml
 ```
 .
 ├── data
+│   ├── output
+│   │   ├── burst_anomaly_table.csv
+│   │   └── response_anomaly_table.csv
 │   ├── processed
+│   │   └── calldata_20251019_processed_v4.csv
 │   └── raw
-│       └── Call_Data_20251019.csv
+│   │   └── Call_Data_20251019.csv
 ├── environment.yml
-├── notebooks
-│   ├── 01_exploration.ipynb
-│   ├── 02_modeling.ipynb
-│   └── 03_visualization.ipynb
+├── figures
+│   └── incident_flow_timeline_response_time_anomalies.png
 ├── README.md
-├── reports
-│   ├── progress_report
-│   └── proposal
-│       └── team102proposal.pdf
 └── src
-    ├── config.py
-    ├── models
-    │   ├── model_1.py
-    │   └── model_4.py
-    ├── preprocessing.py
-    └── visualizations
+    ├── 01_preprocessing
+    │   └── preprocessing.sql
+    ├── 02_models
+    │   ├── anomaly_detection.ipynb
+    │   └── xgb_response_time_prediction.ipynb
+    └── 03_visualizations
         ├── visualization_1.py
-        └── visualization_4.py
+        └── visualizations_2.ipynb
 ```
