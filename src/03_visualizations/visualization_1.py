@@ -1,4 +1,5 @@
 # streamlit run visualization_1.py
+import os
 import streamlit as st
 import pandas as pd
 import plotly.express as px
@@ -6,14 +7,51 @@ import plotly.express as px
 # -------------------------------------------------------------------
 # Constants
 # -------------------------------------------------------------------
-RESP = "call_sign_total_service_time_s"   
+RESP = "call_sign_total_service_time_s"  # seconds
 CAD_ID = "cad_event_number"
 DATETIME_COL = "cad_event_original_time_queued_datetime"
 
 st.set_page_config(page_title="Seattle 911 Explorer", layout="wide")
 
-MONTH_ORDER = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
-               "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+# -------------------------------------------------------------------
+# Helpers
+# -------------------------------------------------------------------
+MONTH_MAP = {
+    1: "Jan", 2: "Feb", 3: "Mar", 4: "Apr",
+    5: "May", 6: "Jun", 7: "Jul", 8: "Aug",
+    9: "Sep", 10: "Oct", 11: "Nov", 12: "Dec",
+}
+INV_MONTH_MAP = {v: k for k, v in MONTH_MAP.items()}
+
+
+def order_for(colname: str):
+    if colname == "dow":
+        return ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+    if colname == "month_name":
+        return [MONTH_MAP[m] for m in range(1, 13)]
+    if colname == "hour":
+        return list(range(24))
+    return None
+
+
+def apply_global_filters_to_anom(df_anom: pd.DataFrame,
+                                 sel_call: str,
+                                 sel_sect: str,
+                                 sel_neigh: str,
+                                 sel_year: int | None,
+                                 sel_month: int | None) -> pd.DataFrame:
+    d = df_anom.copy()
+    if "call_type" in d.columns and sel_call != "All":
+        d = d[d["call_type"] == sel_call]
+    if "dispatch_sector" in d.columns and sel_sect != "All":
+        d = d[d["dispatch_sector"] == sel_sect]
+    if "dispatch_neighborhood" in d.columns and sel_neigh != "All":
+        d = d[d["dispatch_neighborhood"] == sel_neigh]
+    if "Year" in d.columns and sel_year is not None:
+        d = d[d["Year"] == sel_year]
+    if "Month" in d.columns and sel_month is not None:
+        d = d[d["Month"] == sel_month]
+    return d
 
 
 # -------------------------------------------------------------------
@@ -23,35 +61,26 @@ MONTH_ORDER = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
 def load_main_data(path: str) -> pd.DataFrame:
     df = pd.read_csv(path)
 
-    # ensure datetime
-    df[DATETIME_COL] = pd.to_datetime(df[DATETIME_COL], errors="coerce")
-    df = df[df[DATETIME_COL].notna()].copy()
-
-    # mimic Spark filtering for neighborhood / sector
-    for c in ["dispatch_neighborhood", "dispatch_sector"]:
-        if c in df.columns:
-            df[c] = df[c].astype("string")
-
-    if "dispatch_neighborhood" in df.columns and "dispatch_sector" in df.columns:
-        mask = (
-            df["dispatch_neighborhood"].notna()
-            & df["dispatch_sector"].notna()
-            & ~df["dispatch_neighborhood"].str.contains("redacted", case=False, na=False)
-            & ~df["dispatch_sector"].str.contains("redacted", case=False, na=False)
-            & ~df["dispatch_neighborhood"].isin(["-", "Unknown", "UNKNOWN"])
-        )
-        df = df[mask].copy()
-
-    # keep only valid response-time rows
+    # keep only rows with valid response time
     if RESP in df.columns:
-        df[RESP] = pd.to_numeric(df[RESP], errors="coerce")
         df = df[df[RESP].notna() & (df[RESP] > 0)]
 
-    # time features
-    df["queued_ts"] = df[DATETIME_COL]
-    df["year"] = df["queued_ts"].dt.year
-    df["month"] = df["queued_ts"].dt.month
-    df["month_name"] = df["queued_ts"].dt.strftime("%b")
+    # neighborhood / sector cleaning equivalent to your PySpark filter
+    for c in ["dispatch_neighborhood", "dispatch_sector"]:
+        if c in df.columns:
+            df = df[df[c].notna()]
+            df = df[~df[c].astype(str).str.contains("redacted", case=False, na=False)]
+    if "dispatch_neighborhood" in df.columns:
+        df = df[~df["dispatch_neighborhood"].isin(["-", "Unknown", "UNKNOWN"])]
+
+    # time fields
+    ts = pd.to_datetime(df[DATETIME_COL], errors="coerce")
+    df = df[ts.notna()].copy()
+    df["queued_ts"] = ts
+
+    df["Year"] = df["queued_ts"].dt.year
+    df["Month"] = df["queued_ts"].dt.month
+    df["month_name"] = df["Month"].map(MONTH_MAP)
     df["dow_num"] = df["queued_ts"].dt.dayofweek + 1
     df["dow"] = pd.Categorical(
         df["queued_ts"].dt.strftime("%a"),
@@ -61,130 +90,138 @@ def load_main_data(path: str) -> pd.DataFrame:
     df["hour"] = df["queued_ts"].dt.hour
 
     # seconds → minutes (for response time)
-    df["response_time_min"] = df[RESP] / 60.0
+    if RESP in df.columns:
+        df["response_time_min"] = df[RESP].astype(float) / 60.0
+
     return df
 
 
 @st.cache_data(show_spinner=False)
-def load_burst_anomaly(path: str) -> pd.DataFrame:
+def load_volume_anomaly_data(path: str) -> pd.DataFrame:
     """
-    burst_anomaly_table: volume anomalies (hourly bins).
-    Columns expected:
-      cad_event_number,is_anomaly,date,hour,call_type_filtered,total_calls,
-      mean_calls,std_calls,dispatch_sector,dispatch_neighborhood
+    Burst / volume anomaly table.
+    Expected columns at least:
+    cad_event_number, is_anomaly, date, hour, call_type_filtered,
+    total_calls, dispatch_sector, dispatch_neighborhood
     """
-    vis = pd.read_csv(path)
+    df = pd.read_csv(path)
 
-    # datetime + time features
-    vis["date"] = pd.to_datetime(vis["date"], errors="coerce")
-    vis = vis[vis["date"].notna()].copy()
-    vis["hour"] = pd.to_numeric(vis["hour"], errors="coerce").fillna(0).astype(int)
-    vis["datetime"] = vis["date"] + pd.to_timedelta(vis["hour"], unit="h")
-    vis["year"] = vis["date"].dt.year
-    vis["month"] = vis["date"].dt.month
-    vis["month_name"] = vis["date"].dt.strftime("%b")
-    vis["DayOfWeek"] = vis["date"].dt.day_name()
+    # datetime from date + hour
+    df["date"] = pd.to_datetime(df["date"], errors="coerce")
+    df["hour"] = df["hour"].astype(int)
+    df = df[df["date"].notna()].copy()
+    df["datetime"] = df["date"] + pd.to_timedelta(df["hour"], unit="h")
 
-    # clean core fields
-    vis["total_calls"] = pd.to_numeric(vis["total_calls"], errors="coerce").fillna(0)
-    vis["is_anomaly"] = vis["is_anomaly"].fillna(0).astype(int)
+    # standard names
+    if "call_type_filtered" in df.columns:
+        df = df.rename(columns={"call_type_filtered": "call_type"})
 
-    # normalize names to match main df
-    vis = vis.rename(
-        columns={
-            "call_type_filtered": "call_type",
-        }
-    )
+    # time breakdown
+    df["Year"] = df["datetime"].dt.year
+    df["Month"] = df["datetime"].dt.month
+    df["DayOfWeek"] = df["datetime"].dt.day_name()
 
-    return vis
+    # basic cleaning of sector / neighborhood if present
+    for c in ["dispatch_neighborhood", "dispatch_sector"]:
+        if c in df.columns:
+            df[c] = df[c].fillna("Unknown")
+
+    df["is_anomaly"] = df.get("is_anomaly", 0).fillna(0).astype(int)
+    df["total_calls"] = df["total_calls"].fillna(0).astype(float)
+
+    return df
 
 
 @st.cache_data(show_spinner=False)
-def load_response_anomaly(path: str) -> pd.DataFrame:
+def load_response_anomaly_data(path: str) -> pd.DataFrame:
     """
-    response_anomaly_table: response-time anomalies (hourly bins).
-    Columns expected:
-      cad_event_number,is_anomaly,date,hour,call_type_filtered,total_calls,
-      iso_score,dispatch_sector,dispatch_neighborhood,avg_service_time,std_service_time
+    Response-time anomaly table.
+    Expected columns at least:
+    cad_event_number, is_anomaly, date, hour, call_type_filtered,
+    total_calls, dispatch_sector, dispatch_neighborhood,
+    avg_service_time, std_service_time
     """
-    vis = pd.read_csv(path)
+    df = pd.read_csv(path)
 
-    vis["date"] = pd.to_datetime(vis["date"], errors="coerce")
-    vis = vis[vis["date"].notna()].copy()
-    vis["hour"] = pd.to_numeric(vis["hour"], errors="coerce").fillna(0).astype(int)
-    vis["datetime"] = vis["date"] + pd.to_timedelta(vis["hour"], unit="h")
-    vis["year"] = vis["date"].dt.year
-    vis["month"] = vis["date"].dt.month
-    vis["month_name"] = vis["date"].dt.strftime("%b")
-    vis["DayOfWeek"] = vis["date"].dt.day_name()
+    df["date"] = pd.to_datetime(df["date"], errors="coerce")
+    df["hour"] = df["hour"].astype(int)
+    df = df[df["date"].notna()].copy()
+    df["datetime"] = df["date"] + pd.to_timedelta(df["hour"], unit="h")
 
-    vis["is_anomaly"] = vis["is_anomaly"].fillna(0).astype(int)
-    vis["avg_service_time"] = pd.to_numeric(
-        vis["avg_service_time"], errors="coerce"
-    )
-    vis["std_service_time"] = pd.to_numeric(
-        vis["std_service_time"], errors="coerce"
-    )
-    vis = vis[vis["avg_service_time"].notna()]  # avoid NAType issues
+    if "call_type_filtered" in df.columns:
+        df = df.rename(columns={"call_type_filtered": "call_type"})
 
-    vis = vis.rename(
-        columns={
-            "call_type_filtered": "call_type",
-        }
-    )
+    df["Year"] = df["datetime"].dt.year
+    df["Month"] = df["datetime"].dt.month
+    df["DayOfWeek"] = df["datetime"].dt.day_name()
 
-    return vis
+    for c in ["dispatch_neighborhood", "dispatch_sector"]:
+        if c in df.columns:
+            df[c] = df[c].fillna("Unknown")
+
+    df["is_anomaly"] = df.get("is_anomaly", 0).fillna(0).astype(int)
+    df["avg_service_time"] = df["avg_service_time"].astype(float)
+    df["std_service_time"] = df["std_service_time"].astype(float)
+
+    return df
 
 
 @st.cache_data(show_spinner=False)
-def build_volume_baseline(vis: pd.DataFrame) -> pd.DataFrame:
+def build_volume_baseline(df: pd.DataFrame) -> pd.DataFrame:
     """
-    Baseline stats by (call_type, DayOfWeek, hour, sector, neighborhood)
-    for the volume What-If checker.
+    Baseline statistics for hourly call volume, by:
+    call_type, Year, Month, sector, neighborhood, day-of-week, hour
     """
-    df = vis.copy()
-    baselines = (
+    if df.empty:
+        return df
+
+    base = (
         df.groupby(
-            ["call_type", "dispatch_sector", "dispatch_neighborhood", "DayOfWeek", "hour"],
+            [
+                "call_type",
+                "Year",
+                "Month",
+                "dispatch_sector",
+                "dispatch_neighborhood",
+                "DayOfWeek",
+                "hour",
+            ],
             dropna=False,
         )["total_calls"]
         .agg(["mean", "std", "count"])
         .reset_index()
     )
-    baselines["std"] = baselines["std"].replace(0, 1.0)
-    return baselines
+    base["std"] = base["std"].replace(0, 1.0)
+    return base
 
 
 @st.cache_data(show_spinner=False)
-def build_response_baseline(vis: pd.DataFrame) -> pd.DataFrame:
+def build_response_baseline(df: pd.DataFrame) -> pd.DataFrame:
     """
-    Baseline stats by (call_type, sector, neighborhood, DayOfWeek, hour)
-    for response-time What-If checker, using avg_service_time.
+    Baseline statistics for hourly avg response time, by:
+    call_type, Year, Month, sector, neighborhood, day-of-week, hour
     """
-    df = vis.copy()
-    baselines = (
+    if df.empty:
+        return df
+
+    base = (
         df.groupby(
-            ["call_type", "dispatch_sector", "dispatch_neighborhood", "DayOfWeek", "hour"],
+            [
+                "call_type",
+                "Year",
+                "Month",
+                "dispatch_sector",
+                "dispatch_neighborhood",
+                "DayOfWeek",
+                "hour",
+            ],
             dropna=False,
         )["avg_service_time"]
         .agg(["mean", "std", "count"])
         .reset_index()
     )
-    baselines["std"] = baselines["std"].replace(0, 1.0)
-    return baselines
-
-
-# -------------------------------------------------------------------
-# Helpers
-# -------------------------------------------------------------------
-def order_for(colname: str):
-    if colname == "dow":
-        return ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
-    if colname == "month_name":
-        return [m for m in MONTH_ORDER]
-    if colname == "hour":
-        return list(range(24))
-    return None
+    base["std"] = base["std"].replace(0, 1.0)
+    return base
 
 
 # -------------------------------------------------------------------
@@ -192,85 +229,81 @@ def order_for(colname: str):
 # -------------------------------------------------------------------
 st.sidebar.title("Load data")
 main_path = st.sidebar.text_input(
-    "Processed call data CSV path",
+    "Processed CSV path (main call data)",
     value="data/processed/calldata_20251019_processed_v4.csv",
 )
-burst_path = st.sidebar.text_input(
-    "Burst anomaly CSV path (volume)",
+vol_path = st.sidebar.text_input(
+    "Hourly volume anomaly CSV (burst_anomaly_table)",
     value="data/output/burst_anomaly_table.csv",
 )
 resp_path = st.sidebar.text_input(
-    "Response-time anomaly CSV path",
+    "Hourly response-time anomaly CSV (response_anomaly_table)",
     value="data/output/response_anomaly_table.csv",
 )
 
 try:
     df = load_main_data(main_path)
-    burst_df = load_burst_anomaly(burst_path)
-    resp_df = load_response_anomaly(resp_path)
+    vol_df = load_volume_anomaly_data(vol_path)
+    resp_df = load_response_anomaly_data(resp_path)
 except Exception as e:
     st.error(f"Could not load data: {e}")
     st.stop()
 
 st.sidebar.title("Filters")
 
-# global categorical filters
-call_types = (
-    ["All"]
-    + sorted(df.get("call_type", pd.Series()).dropna().unique().tolist())
-    if "call_type" in df.columns
-    else ["All"]
-)
-priorities = (
-    ["All"]
-    + sorted(df.get("priority", pd.Series()).dropna().unique().tolist(), key=lambda x: str(x))
-    if "priority" in df.columns
-    else ["All"]
-)
-sectors = (
-    ["All"]
-    + sorted(df.get("dispatch_sector", pd.Series()).dropna().unique().tolist())
-    if "dispatch_sector" in df.columns
-    else ["All"]
-)
-neighborhoods_all = (
-    ["All"]
-    + sorted(df.get("dispatch_neighborhood", pd.Series()).dropna().unique().tolist())
-    if "dispatch_neighborhood" in df.columns
-    else ["All"]
-)
+# --- Call type / priority options ---
+call_types = ["All"]
+if "call_type" in df.columns:
+    call_types += sorted(df["call_type"].dropna().unique().tolist())
+priorities = ["All"]
+if "priority" in df.columns:
+    priorities += sorted(
+        df["priority"].dropna().unique().tolist(), key=lambda x: str(x)
+    )
+
+# --- Sector list ---
+sectors = ["All"]
+if "dispatch_sector" in df.columns:
+    sectors += sorted(df["dispatch_sector"].dropna().unique().tolist())
 
 sel_call = st.sidebar.selectbox("Call Type", call_types, index=0)
 sel_prio = st.sidebar.selectbox("Priority", priorities, index=0)
 sel_sect = st.sidebar.selectbox("Dispatch Sector", sectors, index=0)
 
-# neighborhood choices depend on sector (if one is selected)
-if sel_sect != "All":
-    neigh_opts = (
-        ["All"]
-        + sorted(
-            df[df["dispatch_sector"] == sel_sect]["dispatch_neighborhood"]
+# --- Cascading neighborhood list based on selected sector ---
+if "dispatch_neighborhood" in df.columns:
+    if sel_sect != "All":
+        neigh_options = (
+            df.loc[df["dispatch_sector"] == sel_sect, "dispatch_neighborhood"]
             .dropna()
             .unique()
             .tolist()
         )
-    )
+    else:
+        neigh_options = df["dispatch_neighborhood"].dropna().unique().tolist()
+    neighborhoods = ["All"] + sorted(neigh_options)
 else:
-    neigh_opts = neighborhoods_all
+    neighborhoods = ["All"]
 
-sel_neigh = st.sidebar.selectbox("Dispatch Neighborhood", neigh_opts, index=0)
+sel_neigh = st.sidebar.selectbox("Dispatch Neighborhood", neighborhoods, index=0)
 
-# year & month filters
-years = ["All"] + sorted(df["year"].dropna().unique().tolist())
-months_available = [m for m in MONTH_ORDER if m in df["month_name"].unique()]
-months = ["All"] + months_available
+# --- Year filter ---
+years = ["All"]
+if "Year" in df.columns:
+    years += sorted(df["Year"].dropna().astype(int).unique().tolist())
+sel_year_label = st.sidebar.selectbox("Year", years, index=0)
+sel_year = None if sel_year_label == "All" else int(sel_year_label)
 
-sel_year = st.sidebar.selectbox("Year", years, index=0)
-sel_month = st.sidebar.selectbox("Month", months, index=0)
+# --- Month filter ---
+months = ["All"] + [MONTH_MAP[m] for m in range(1, 13)]
+sel_month_label = st.sidebar.selectbox("Month", months, index=0)
+sel_month = None
+if sel_month_label != "All":
+    sel_month = INV_MONTH_MAP[sel_month_label]
 
-# Metric for Response Time Explorer
+# --- Metric radio for response-time explorer ---
 metric = st.sidebar.radio(
-    "Metric for Response Time Explorer",
+    "Metric to show in Response Time Explorer",
     ["avg", "median", "min", "max"],
     horizontal=True,
 )
@@ -282,7 +315,7 @@ metric_map = {
 }
 metric_label, agg_fn = metric_map[metric]
 
-# Time axes
+# --- Time axes for heatmaps (unchanged) ---
 st.sidebar.title("Time Axes")
 axis_options = {
     "Month": "month_name",
@@ -313,33 +346,22 @@ if sel_sect != "All" and "dispatch_sector" in df_f.columns:
     df_f = df_f[df_f["dispatch_sector"] == sel_sect]
 if sel_neigh != "All" and "dispatch_neighborhood" in df_f.columns:
     df_f = df_f[df_f["dispatch_neighborhood"] == sel_neigh]
-if sel_year != "All":
-    df_f = df_f[df_f["year"] == sel_year]
-if sel_month != "All":
-    df_f = df_f[df_f["month_name"] == sel_month]
+if sel_year is not None and "Year" in df_f.columns:
+    df_f = df_f[df_f["Year"] == sel_year]
+if sel_month is not None and "Month" in df_f.columns:
+    df_f = df_f[df_f["Month"] == sel_month]
 
 if df_f.empty:
     st.warning("No rows after filters.")
     st.stop()
 
-# Subsets of anomaly tables with the same global filters
-def filter_anomaly_df(vis):
-    out = vis.copy()
-    if sel_call != "All":
-        out = out[out["call_type"] == sel_call]
-    if sel_sect != "All":
-        out = out[out["dispatch_sector"] == sel_sect]
-    if sel_neigh != "All":
-        out = out[out["dispatch_neighborhood"] == sel_neigh]
-    if sel_year != "All":
-        out = out[out["year"] == sel_year]
-    if sel_month != "All":
-        out = out[out["month_name"] == sel_month]
-    return out
-
-
-burst_sub = filter_anomaly_df(burst_df)
-resp_sub = filter_anomaly_df(resp_df)
+# Also apply global filters to anomaly tables
+vol_filtered = apply_global_filters_to_anom(
+    vol_df, sel_call, sel_sect, sel_neigh, sel_year, sel_month
+)
+resp_filtered = apply_global_filters_to_anom(
+    resp_df, sel_call, sel_sect, sel_neigh, sel_year, sel_month
+)
 
 # -------------------------------------------------------------------
 # SECTION 1: Seattle 911 – Response Time Explorer
@@ -349,19 +371,20 @@ st.caption(
     "Interactive analysis of SPD response time by incident context and time patterns (in minutes)."
 )
 
-mins = df_f["response_time_min"]
+mins = df_f["response_time_min"].dropna()
 p95 = mins.quantile(0.95)
 
-# KPIs
+rows_ct = len(df_f)
+
 c1, c2, c3, c4, c5, c6 = st.columns(6)
-c1.metric("Rows (after filters)", f"{len(df_f):,}")
+c1.metric("Rows (after filters)", f"{rows_ct:,}")
 c2.metric("Avg (min)", f"{mins.mean():.2f}")
 c3.metric("Median (min)", f"{mins.median():.2f}")
 c4.metric("95th percentile (min)", f"{p95:.2f}")
 c5.metric("Min (min)", f"{mins.min():.2f}")
 c6.metric("Max (min)", f"{mins.max():.2f}")
 
-# Aggregation for heatmap
+# Aggregation for response-time heatmap
 agg_df = (
     df_f.groupby([y_col, x_col], dropna=False)["response_time_min"]
     .agg([agg_fn, "count"])
@@ -381,8 +404,10 @@ pivot = (
 )
 
 title_rt = (
-    f"{metric_label} • CallType: {sel_call} • Priority: {sel_prio} • "
-    f"Sector: {sel_sect} • Neighborhood: {sel_neigh} • Year: {sel_year} • Month: {sel_month}"
+    f"{metric_label} Response Time (min) • "
+    f"CallType: {sel_call} • Priority: {sel_prio} • "
+    f"Sector: {sel_sect} • Neighborhood: {sel_neigh} • "
+    f"Year: {sel_year_label} • Month: {sel_month_label}"
 )
 
 fig_rt = px.imshow(
@@ -441,9 +466,8 @@ freq_vals = freq_df["freq"]
 
 fc1, fc2, fc3, fc4, fc5 = st.columns(5)
 fc1.metric(
-    "Total calls (unique CAD)", f"{df_f[CAD_ID].nunique():,}"
-    if CAD_ID in df_f.columns
-    else "—",
+    "Total calls (unique CAD)",
+    f"{df_f[CAD_ID].nunique():,}" if CAD_ID in df_f.columns else "—",
 )
 fc2.metric("Avg calls / cell", f"{freq_vals.mean():.2f}" if not freq_df.empty else "—")
 fc3.metric(
@@ -465,7 +489,8 @@ pivot_freq = (
 title_freq = (
     f"Call Frequency (unique CAD per cell) • "
     f"CallType: {sel_call} • Priority: {sel_prio} • "
-    f"Sector: {sel_sect} • Neighborhood: {sel_neigh} • Year: {sel_year} • Month: {sel_month}"
+    f"Sector: {sel_sect} • Neighborhood: {sel_neigh} • "
+    f"Year: {sel_year_label} • Month: {sel_month_label}"
 )
 
 fig_freq = px.imshow(
@@ -485,136 +510,137 @@ with st.expander("Show aggregated table (frequency)"):
 st.markdown("---")
 
 # -------------------------------------------------------------------
-# SECTION 3A: Incident Flow Timeline — Volume Anomalies
+# SECTION 3: Incident Flow Timeline — Volume Anomalies
 # -------------------------------------------------------------------
 st.header("Incident Flow Timeline — Hourly 911 Calls (Volume Anomalies)")
 
-if not burst_sub.empty:
+if vol_filtered.empty:
+    st.info("No volume anomaly rows for the selected filters.")
+else:
+    vol_rows = len(vol_filtered)
+    vol_total_calls = int(vol_filtered["total_calls"].sum())
+    vol_anom_hours = int(vol_filtered["is_anomaly"].sum())
+
     t1, t2, t3 = st.columns(3)
-    t1.metric("Rows (hourly bins)", f"{len(burst_sub):,}")
-    t2.metric("Total calls (sum of total_calls)", f"{int(burst_sub['total_calls'].sum()):,}")
-    t3.metric("Anomaly hours", f"{int(burst_sub['is_anomaly'].sum()):,}")
+    t1.metric("Rows (hourly bins)", f"{vol_rows:,}")
+    t2.metric("Total calls (sum of total_calls)", f"{vol_total_calls:,}")
+    t3.metric("Anomaly hours", f"{vol_anom_hours:,}")
 
     fig_vol = px.scatter(
-        burst_sub,
-        x="date",
+        vol_filtered,
+        x="datetime",
         y="total_calls",
         color="call_type",
         symbol="is_anomaly",
         symbol_map={0: "circle", 1: "x"},
-        labels={"total_calls": "Number of calls per hour", "date": "Date"},
-        hover_data=["call_type", "total_calls", "is_anomaly", "dispatch_sector", "dispatch_neighborhood"],
+        labels={"total_calls": "Number of calls per hour", "datetime": "Date / Hour"},
+        hover_data=["call_type", "total_calls", "is_anomaly"],
         title="Hourly 911 Calls — Volume Anomalies Highlighted",
     )
-    fig_vol.update_traces(marker=dict(size=7, opacity=0.7))
+    fig_vol.update_traces(marker=dict(size=6, opacity=0.7))
     fig_vol.update_layout(height=520, margin=dict(l=40, r=20, t=70, b=60))
     st.plotly_chart(fig_vol, use_container_width=True)
 
-with st.expander("Show volume anomaly table"):
-    st.dataframe(burst_sub.sort_values("date"), use_container_width=True)
+    with st.expander("Show volume anomaly table"):
+        st.dataframe(vol_filtered.sort_values("datetime"), use_container_width=True)
 
 st.markdown("---")
 
 # -------------------------------------------------------------------
-# SECTION 3B: Incident Flow Timeline — Response-Time Anomalies
+# SECTION 4: Incident Flow Timeline — Response-Time Anomalies
 # -------------------------------------------------------------------
 st.header("Incident Flow Timeline — Slow Response Time Anomalies")
 
-if not resp_sub.empty:
-    r1, r2, r3 = st.columns(3)
-    r1.metric("Rows (hourly bins)", f"{len(resp_sub):,}")
-    r2.metric("Total calls (sum of total_calls)", f"{int(resp_sub['total_calls'].sum()):,}")
-    r3.metric("Anomaly hours", f"{int(resp_sub['is_anomaly'].sum()):,}")
+if resp_filtered.empty:
+    st.info("No response-time anomaly rows for the selected filters.")
+else:
+    rt_rows = len(resp_filtered)
+    rt_anom_hours = int(resp_filtered["is_anomaly"].sum())
+    rt_avg = resp_filtered["avg_service_time"].mean()
+    rt_p95 = resp_filtered["avg_service_time"].quantile(0.95)
 
-    fig_resp = px.scatter(
-        resp_sub,
-        x="date",
+    r1, r2, r3, r4 = st.columns(4)
+    r1.metric("Rows (hourly bins)", f"{rt_rows:,}")
+    r2.metric("Anomaly hours", f"{rt_anom_hours:,}")
+    r3.metric("Avg response time (sec)", f"{rt_avg:.1f}")
+    r4.metric("95th percentile (sec)", f"{rt_p95:.1f}")
+
+    fig_rt_anom = px.scatter(
+        resp_filtered,
+        x="datetime",
         y="avg_service_time",
         color="call_type",
         symbol="is_anomaly",
         symbol_map={0: "circle", 1: "x"},
-        labels={"avg_service_time": "Average response time (sec)", "date": "Date"},
-        hover_data=[
-            "call_type",
-            "avg_service_time",
-            "std_service_time",
-            "total_calls",
-            "dispatch_sector",
-            "dispatch_neighborhood",
-            "is_anomaly",
-        ],
-        title="Hourly 911 Calls — Slow Response Time Anomalies Highlighted",
+        labels={
+            "avg_service_time": "Average response time (sec)",
+            "datetime": "Date / Hour",
+        },
+        hover_data=["call_type", "avg_service_time", "total_calls", "is_anomaly"],
+        title="Incident Flow Timeline — Slow Response Time Anomalies",
     )
-    fig_resp.update_traces(marker=dict(size=7, opacity=0.7))
-    fig_resp.update_layout(height=520, margin=dict(l=40, r=20, t=70, b=60))
-    st.plotly_chart(fig_resp, use_container_width=True)
+    fig_rt_anom.update_traces(marker=dict(size=6, opacity=0.7))
+    fig_rt_anom.update_layout(height=520, margin=dict(l=40, r=20, t=70, b=60))
+    st.plotly_chart(fig_rt_anom, use_container_width=True)
 
-with st.expander("Show response-time anomaly table"):
-    st.dataframe(resp_sub.sort_values("date"), use_container_width=True)
+    with st.expander("Show response-time anomaly table"):
+        st.dataframe(resp_filtered.sort_values("datetime"), use_container_width=True)
 
 st.markdown("---")
 
 # -------------------------------------------------------------------
-# SECTION 4A: What-If Anomaly Checker — Volume
+# SECTION 5: What-If Anomaly Checker — Volume
 # -------------------------------------------------------------------
 st.header("What-If Anomaly Checker — Volume")
 
-volume_baseline = build_volume_baseline(burst_df)
+vol_baseline = build_volume_baseline(vol_df)
 
-if volume_baseline.empty:
-    st.info("Baseline statistics unavailable – cannot run volume What-If checker.")
+if vol_baseline.empty:
+    st.info("Baseline statistics for volume are unavailable.")
 else:
-    # default to global selections when possible
-    ctx_call_list = sorted(volume_baseline["call_type"].dropna().unique().tolist())
-    ctx_call_default = ctx_call_list.index(sel_call) if sel_call in ctx_call_list else 0
-    ctx_call = st.selectbox("Call type (volume)", ctx_call_list, index=ctx_call_default)
-
-    ctx_sector_list = sorted(
-        volume_baseline["dispatch_sector"].dropna().unique().tolist()
-    )
-    ctx_sector_default = (
-        ctx_sector_list.index(sel_sect) if sel_sect in ctx_sector_list else 0
-    )
-    ctx_sector = st.selectbox(
-        "Dispatch sector (volume)", ctx_sector_list, index=ctx_sector_default
+    st.markdown(
+        f"Context from filters — **Call type:** `{sel_call}` • "
+        f"**Sector:** `{sel_sect}` • **Neighborhood:** `{sel_neigh}` • "
+        f"**Year:** `{sel_year_label}` • **Month:** `{sel_month_label}`"
     )
 
-    neigh_choices = sorted(
-        volume_baseline[
-            volume_baseline["dispatch_sector"] == ctx_sector
-        ]["dispatch_neighborhood"]
-        .dropna()
-        .unique()
-        .tolist()
-    )
-    ctx_neigh_default = (
-        neigh_choices.index(sel_neigh) if sel_neigh in neigh_choices else 0
-    ) if neigh_choices else 0
-    ctx_neigh = st.selectbox(
-        "Dispatch neighborhood (volume)", neigh_choices or ["(none)"], index=ctx_neigh_default
-    )
-
-    days_order = ["Monday", "Tuesday", "Wednesday", "Thursday",
-                  "Friday", "Saturday", "Sunday"]
+    days_order = [
+        "Monday",
+        "Tuesday",
+        "Wednesday",
+        "Thursday",
+        "Friday",
+        "Saturday",
+        "Sunday",
+    ]
     ctx_dow = st.selectbox("Day of week (volume)", days_order, index=0)
     ctx_hour = st.slider("Hour of day (volume)", 0, 23, 12)
     observed_calls = st.number_input(
         "Observed calls this hour", min_value=0, value=20, step=1
     )
 
-    row = volume_baseline[
-        (volume_baseline["call_type"] == ctx_call)
-        & (volume_baseline["dispatch_sector"] == ctx_sector)
-        & (volume_baseline["dispatch_neighborhood"] == ctx_neigh)
-        & (volume_baseline["DayOfWeek"] == ctx_dow)
-        & (volume_baseline["hour"] == ctx_hour)
-    ]
+    rows = vol_baseline.copy()
 
-    if row.empty:
-        st.warning("No historical baseline for this combination yet.")
+    if sel_call != "All":
+        rows = rows[rows["call_type"] == sel_call]
+    if sel_sect != "All":
+        rows = rows[rows["dispatch_sector"] == sel_sect]
+    if sel_neigh != "All":
+        rows = rows[rows["dispatch_neighborhood"] == sel_neigh]
+    if sel_year is not None:
+        rows = rows[rows["Year"] == sel_year]
+    if sel_month is not None:
+        rows = rows[rows["Month"] == sel_month]
+
+    rows = rows[(rows["DayOfWeek"] == ctx_dow) & (rows["hour"] == ctx_hour)]
+
+    if rows.empty:
+        st.warning("No historical baseline for this context yet.")
     else:
-        mu = float(row["mean"].iloc[0])
-        sigma = float(row["std"].iloc[0]) if float(row["std"].iloc[0]) > 0 else 1.0
+        mu = float(rows["mean"].mean())
+        sigma = float(rows["std"].mean())
+        if sigma <= 0:
+            sigma = 1.0
         z = (observed_calls - mu) / sigma
 
         c1, c2, c3 = st.columns(3)
@@ -623,135 +649,138 @@ else:
         c3.metric("Z-score", f"{z:.2f}")
 
         if abs(z) >= 3:
-            st.error("This would be a **strong volume anomaly** (|z| ≥ 3).")
+            st.error(
+                "This would be flagged as a **strong anomaly** (|z| ≥ 3) "
+                "given historical call volume for this context."
+            )
         elif abs(z) >= 2:
-            st.warning("This looks **unusual** (|z| between 2 and 3).")
+            st.warning(
+                "This looks **unusual** (|z| between 2 and 3). It may warrant attention."
+            )
         else:
-            st.success("Within the **normal range** for hourly call volume.")
+            st.success("Within the **normal range** for call volume in this context.")
 
-        hist_data = burst_df[
-            (burst_df["call_type"] == ctx_call)
-            & (burst_df["dispatch_sector"] == ctx_sector)
-            & (burst_df["dispatch_neighborhood"] == ctx_neigh)
-            & (burst_df["DayOfWeek"] == ctx_dow)
-            & (burst_df["hour"] == ctx_hour)
-        ]["total_calls"]
+        # distribution plot based on filtered volume data
+        hist_data = apply_global_filters_to_anom(
+            vol_df, sel_call, sel_sect, sel_neigh, sel_year, sel_month
+        )
+        hist_data = hist_data[
+            (hist_data["DayOfWeek"] == ctx_dow) & (hist_data["hour"] == ctx_hour)
+        ]["total_calls"].dropna()
 
         if not hist_data.empty:
-            fig_hist = px.histogram(
+            fig_hist_vol = px.histogram(
                 hist_data,
                 nbins=20,
                 labels={"value": "Historical hourly call counts"},
                 title="Historical distribution of hourly call counts for this context",
             )
-            fig_hist.add_vline(
+            fig_hist_vol.add_vline(
                 x=observed_calls,
                 line_dash="dash",
                 line_color="red",
                 annotation_text="Observed",
                 annotation_position="top right",
             )
-            st.plotly_chart(fig_hist, use_container_width=True)
+            st.plotly_chart(fig_hist_vol, use_container_width=True)
 
 st.markdown("---")
 
 # -------------------------------------------------------------------
-# SECTION 4B: What-If Anomaly Checker — Response Time
+# SECTION 6: What-If Anomaly Checker — Response Time
 # -------------------------------------------------------------------
 st.header("What-If Anomaly Checker — Response Time")
 
-response_baseline = build_response_baseline(resp_df)
+resp_baseline = build_response_baseline(resp_df)
 
-if response_baseline.empty:
-    st.info("Baseline statistics unavailable – cannot run response-time checker.")
+if resp_baseline.empty:
+    st.info("Baseline statistics for response time are unavailable.")
 else:
-    ctx_call_list = sorted(response_baseline["call_type"].dropna().unique().tolist())
-    ctx_call_default = ctx_call_list.index(sel_call) if sel_call in ctx_call_list else 0
-    ctx_call_r = st.selectbox(
-        "Call type (response time)", ctx_call_list, index=ctx_call_default
+    st.markdown(
+        f"Context from filters — **Call type:** `{sel_call}` • "
+        f"**Sector:** `{sel_sect}` • **Neighborhood:** `{sel_neigh}` • "
+        f"**Year:** `{sel_year_label}` • **Month:** `{sel_month_label}`"
     )
 
-    ctx_sector_list = sorted(
-        response_baseline["dispatch_sector"].dropna().unique().tolist()
-    )
-    ctx_sector_default = (
-        ctx_sector_list.index(sel_sect) if sel_sect in ctx_sector_list else 0
-    )
-    ctx_sector_r = st.selectbox(
-        "Dispatch sector (response time)", ctx_sector_list, index=ctx_sector_default
-    )
-
-    neigh_choices_r = sorted(
-        response_baseline[
-            response_baseline["dispatch_sector"] == ctx_sector_r
-        ]["dispatch_neighborhood"]
-        .dropna()
-        .unique()
-        .tolist()
-    )
-    ctx_neigh_default_r = (
-        neigh_choices_r.index(sel_neigh) if sel_neigh in neigh_choices_r else 0
-    ) if neigh_choices_r else 0
-    ctx_neigh_r = st.selectbox(
-        "Dispatch neighborhood (response time)",
-        neigh_choices_r or ["(none)"],
-        index=ctx_neigh_default_r,
-    )
-
-    days_order = ["Monday", "Tuesday", "Wednesday", "Thursday",
-                  "Friday", "Saturday", "Sunday"]
-    ctx_dow_r = st.selectbox("Day of week (response time)", days_order, index=0)
-    ctx_hour_r = st.slider("Hour of day (response time)", 0, 23, 12)
+    days_order = [
+        "Monday",
+        "Tuesday",
+        "Wednesday",
+        "Thursday",
+        "Friday",
+        "Saturday",
+        "Sunday",
+    ]
+    ctx_dow_rt = st.selectbox("Day of week (response time)", days_order, index=0)
+    ctx_hour_rt = st.slider("Hour of day (response time)", 0, 23, 12)
     observed_rt = st.number_input(
-        "Observed average response time this hour (sec)",
+        "Observed average response time this hour (seconds)",
         min_value=0.0,
-        value=300.0,
-        step=10.0,
+        value=600.0,
+        step=30.0,
     )
 
-    row_r = response_baseline[
-        (response_baseline["call_type"] == ctx_call_r)
-        & (response_baseline["dispatch_sector"] == ctx_sector_r)
-        & (response_baseline["dispatch_neighborhood"] == ctx_neigh_r)
-        & (response_baseline["DayOfWeek"] == ctx_dow_r)
-        & (response_baseline["hour"] == ctx_hour_r)
+    rows_rt = resp_baseline.copy()
+
+    if sel_call != "All":
+        rows_rt = rows_rt[rows_rt["call_type"] == sel_call]
+    if sel_sect != "All":
+        rows_rt = rows_rt[rows_rt["dispatch_sector"] == sel_sect]
+    if sel_neigh != "All":
+        rows_rt = rows_rt[rows_rt["dispatch_neighborhood"] == sel_neigh]
+    if sel_year is not None:
+        rows_rt = rows_rt[rows_rt["Year"] == sel_year]
+    if sel_month is not None:
+        rows_rt = rows_rt[rows_rt["Month"] == sel_month]
+
+    rows_rt = rows_rt[
+        (rows_rt["DayOfWeek"] == ctx_dow_rt) & (rows_rt["hour"] == ctx_hour_rt)
     ]
 
-    if row_r.empty:
+    if rows_rt.empty:
         st.warning("No historical baseline for this response-time context yet.")
     else:
-        mu_r = float(row_r["mean"].iloc[0])
-        sigma_r = float(row_r["std"].iloc[0]) if float(row_r["std"].iloc[0]) > 0 else 1.0
-        z_r = (observed_rt - mu_r) / sigma_r
+        mu_rt = float(rows_rt["mean"].mean())
+        sigma_rt = float(rows_rt["std"].mean())
+        if sigma_rt <= 0:
+            sigma_rt = 1.0
+        z_rt = (observed_rt - mu_rt) / sigma_rt
 
         c1, c2, c3 = st.columns(3)
-        c1.metric("Expected avg response (μ, sec)", f"{mu_r:.1f}")
-        c2.metric("Std dev (σ, sec)", f"{sigma_r:.1f}")
-        c3.metric("Z-score", f"{z_r:.2f}")
+        c1.metric("Expected avg response (μ, sec)", f"{mu_rt:.1f}")
+        c2.metric("Std dev (σ, sec)", f"{sigma_rt:.1f}")
+        c3.metric("Z-score", f"{z_rt:.2f}")
 
-        if z_r >= 3:
-            st.error("This would be a **strong slow-response anomaly** (z ≥ 3).")
-        elif z_r >= 2:
-            st.warning("This looks **unusually slow** (z between 2 and 3).")
-        elif z_r <= -2:
-            st.success("This is **unusually fast** compared to history (z ≤ -2).")
+        if z_rt >= 3:
+            st.error(
+                "This would be flagged as a **slow-response anomaly** (z ≥ 3) "
+                "given historical patterns for this context."
+            )
+        elif z_rt >= 2:
+            st.warning(
+                "This response looks **slower than usual** (z between 2 and 3)."
+            )
+        elif z_rt <= -2:
+            st.success(
+                "This response is **faster than historical average** (z ≤ -2) "
+                "for this context."
+            )
         else:
-            st.success("Within the **normal range** for response time in this context.")
+            st.success("Within the **normal response-time range** for this context.")
 
-        hist_rt = resp_df[
-            (resp_df["call_type"] == ctx_call_r)
-            & (resp_df["dispatch_sector"] == ctx_sector_r)
-            & (resp_df["dispatch_neighborhood"] == ctx_neigh_r)
-            & (resp_df["DayOfWeek"] == ctx_dow_r)
-            & (resp_df["hour"] == ctx_hour_r)
-        ]["avg_service_time"]
+        hist_rt = apply_global_filters_to_anom(
+            resp_df, sel_call, sel_sect, sel_neigh, sel_year, sel_month
+        )
+        hist_rt = hist_rt[
+            (hist_rt["DayOfWeek"] == ctx_dow_rt) & (hist_rt["hour"] == ctx_hour_rt)
+        ]["avg_service_time"].dropna()
 
         if not hist_rt.empty:
             fig_hist_rt = px.histogram(
                 hist_rt,
                 nbins=20,
-                labels={"value": "Historical avg hourly response time (sec)"},
-                title="Historical distribution of hourly response time for this context",
+                labels={"value": "Historical avg response time (sec)"},
+                title="Historical distribution of avg response time for this context",
             )
             fig_hist_rt.add_vline(
                 x=observed_rt,
