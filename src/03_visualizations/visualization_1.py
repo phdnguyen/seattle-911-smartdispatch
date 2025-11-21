@@ -154,6 +154,7 @@ def build_volume_baseline(df: pd.DataFrame) -> pd.DataFrame:
                 "hour",
             ],
             dropna=False,
+            observed=False,
         )["total_calls"]
         .agg(["mean", "std", "count"])
         .reset_index()
@@ -178,6 +179,7 @@ def build_response_baseline(df: pd.DataFrame) -> pd.DataFrame:
                 "hour",
             ],
             dropna=False,
+            observed=False,
         )["avg_service_time"]
         .agg(["mean", "std", "count"])
         .reset_index()
@@ -308,8 +310,9 @@ resp_filtered = apply_global_filters_to_anom(
 )
 
 st.title("Seattle 911 Dashboard")
-st.caption("Source: Seattle Open Data Portal — https://data.seattle.gov/Public-Safety/Call-Data/33kz-ixgy/about_data")
-
+st.caption(
+    "Source: Seattle Open Data Portal — https://data.seattle.gov/Public-Safety/Call-Data/33kz-ixgy/about_data"
+)
 
 st.header("Response Time Explorer")
 st.caption("Interactive analysis of SPD response time by incident context and time patterns (in minutes).")
@@ -327,7 +330,7 @@ c5.metric("Min (min)", f"{mins.min():.2f}")
 c6.metric("Max (min)", f"{mins.max():.2f}")
 
 agg_df = (
-    df_f.groupby([y_col, x_col], dropna=False)["response_time_min"]
+    df_f.groupby([y_col, x_col], dropna=False, observed=False)["response_time_min"]
     .agg([agg_fn, "count"])
     .reset_index()
     .rename(columns={agg_fn: "value", "count": "n"})
@@ -339,7 +342,13 @@ if order_y is not None:
     agg_df[y_col] = pd.Categorical(agg_df[y_col], categories=order_y, ordered=True)
 
 pivot = (
-    agg_df.pivot_table(index=y_col, columns=x_col, values="value", aggfunc="mean")
+    agg_df.pivot_table(
+        index=y_col,
+        columns=x_col,
+        values="value",
+        aggfunc="mean",
+        observed=False,
+    )
     .sort_index()
     .sort_index(axis=1)
 )
@@ -360,10 +369,10 @@ fig_rt = px.imshow(
     title=title_rt,
 )
 fig_rt.update_layout(margin=dict(l=50, r=20, t=70, b=50), height=560)
-st.plotly_chart(fig_rt, use_container_width=True)
+st.plotly_chart(fig_rt, width="stretch")
 
 cell_stats = (
-    df_f.groupby([y_col, x_col])["response_time_min"]
+    df_f.groupby([y_col, x_col], observed=False)["response_time_min"]
     .median()
     .reset_index()
     .rename(columns={"response_time_min": "median_rt"})
@@ -377,15 +386,17 @@ if not cell_stats.empty:
     st.caption(f"**Worst median-response cell:** {worst_label}")
 
 with st.expander("Show aggregated table (response time)"):
-    st.dataframe(agg_df.sort_values("value", ascending=False), use_container_width=True)
+    st.dataframe(agg_df.sort_values("value", ascending=False), width="stretch")
 
 st.markdown("---")
 
 st.header("Call Volume Explorer")
-st.caption("Unique CAD events per time cell. KPIs use aggregate statistics across cells; the heatmap shows per-cell frequency (counts).")
+st.caption(
+    "Unique CAD events per time cell. KPIs use aggregate statistics across cells; the heatmap shows per-cell frequency (counts)."
+)
 
 freq_df = (
-    df_f.groupby([y_col, x_col], dropna=False)[CAD_ID]
+    df_f.groupby([y_col, x_col], dropna=False, observed=False)[CAD_ID]
     .nunique()
     .reset_index()
     .rename(columns={CAD_ID: "freq"})
@@ -409,7 +420,13 @@ fc4.metric("Min calls / cell", f"{freq_vals.min():.0f}" if not freq_df.empty els
 fc5.metric("Max calls / cell", f"{freq_vals.max():.0f}" if not freq_df.empty else "—")
 
 pivot_freq = (
-    freq_df.pivot_table(index=y_col, columns=x_col, values="freq", aggfunc="sum")
+    freq_df.pivot_table(
+        index=y_col,
+        columns=x_col,
+        values="freq",
+        aggfunc="sum",
+        observed=False,
+    )
     .sort_index()
     .sort_index(axis=1)
 )
@@ -430,10 +447,10 @@ fig_freq = px.imshow(
     title=title_freq,
 )
 fig_freq.update_layout(margin=dict(l=50, r=20, t=70, b=50), height=560)
-st.plotly_chart(fig_freq, use_container_width=True)
+st.plotly_chart(fig_freq, width="stretch")
 
 with st.expander("Show aggregated table (frequency)"):
-    st.dataframe(freq_df.sort_values("freq", ascending=False), use_container_width=True)
+    st.dataframe(freq_df.sort_values("freq", ascending=False), width="stretch")
 
 st.markdown("---")
 
@@ -464,10 +481,10 @@ else:
     )
     fig_vol.update_traces(marker=dict(size=6, opacity=0.7))
     fig_vol.update_layout(height=520, margin=dict(l=40, r=20, t=70, b=60))
-    st.plotly_chart(fig_vol, use_container_width=True)
+    st.plotly_chart(fig_vol, width="stretch")
 
     with st.expander("Show volume anomaly table"):
-        st.dataframe(vol_filtered.sort_values("datetime"), use_container_width=True)
+        st.dataframe(vol_filtered.sort_values("datetime"), width="stretch")
 
 st.markdown("---")
 
@@ -503,10 +520,10 @@ else:
     )
     fig_rt_anom.update_traces(marker=dict(size=6, opacity=0.7))
     fig_rt_anom.update_layout(height=520, margin=dict(l=40, r=20, t=70, b=60))
-    st.plotly_chart(fig_rt_anom, use_container_width=True)
+    st.plotly_chart(fig_rt_anom, width="stretch")
 
     with st.expander("Show response-time anomaly table"):
-        st.dataframe(resp_filtered.sort_values("datetime"), use_container_width=True)
+        st.dataframe(resp_filtered.sort_values("datetime"), width="stretch")
 
 st.markdown("---")
 
@@ -601,7 +618,7 @@ else:
                 annotation_text="Observed",
                 annotation_position="top right",
             )
-            st.plotly_chart(fig_hist_vol, use_container_width=True)
+            st.plotly_chart(fig_hist_vol, width="stretch")
 
 st.markdown("---")
 
@@ -702,4 +719,4 @@ else:
                 annotation_text="Observed",
                 annotation_position="top right",
             )
-            st.plotly_chart(fig_hist_rt, use_container_width=True)
+            st.plotly_chart(fig_hist_rt, width="stretch")
