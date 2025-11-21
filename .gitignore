@@ -210,5 +210,5 @@ __marimo__/
 .DS_Store
 
 # Local data
-*.csv
+#*.csv
 *.parquet
