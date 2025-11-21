@@ -189,7 +189,7 @@ def build_response_baseline(df: pd.DataFrame) -> pd.DataFrame:
 st.sidebar.title("Load data")
 main_path = st.sidebar.text_input(
     "Processed CSV path (main call data)",
-    value="data/processed/calldata_20251019_processed_v4.csv",
+    value="data/processed/calldata_20251019_processed_v4_small.csv",
 )
 vol_path = st.sidebar.text_input(
     "Hourly volume anomaly CSV (burst_anomaly_table)",
