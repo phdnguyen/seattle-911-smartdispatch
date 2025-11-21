@@ -2,3 +2,4 @@ data/processed/calldata_20251019_processed_v4.csv filter=lfs diff=lfs merge=lfs 
 data/output/burst_anomaly_table.csv filter=lfs diff=lfs merge=lfs -text
 data/output/response_anomaly_table.csv filter=lfs diff=lfs merge=lfs -text
 *.csv filter=lfs diff=lfs merge=lfs -text
+*.parquet filter=lfs diff=lfs merge=lfs -text

@@ -87,7 +87,7 @@ def load_main_data(path: str) -> pd.DataFrame:
 
 @st.cache_data(show_spinner=False)
 def load_volume_anomaly_data(path: str) -> pd.DataFrame:
-    df = pd.read_csv(path)
+    df = pd.read_parquet(path)
 
     df["date"] = pd.to_datetime(df["date"], errors="coerce")
     df["hour"] = df["hour"].astype(int)
@@ -113,7 +113,7 @@ def load_volume_anomaly_data(path: str) -> pd.DataFrame:
 
 @st.cache_data(show_spinner=False)
 def load_response_anomaly_data(path: str) -> pd.DataFrame:
-    df = pd.read_csv(path)
+    df = pd.read_parquet(path)
 
     df["date"] = pd.to_datetime(df["date"], errors="coerce")
     df["hour"] = df["hour"].astype(int)
@@ -195,11 +195,11 @@ main_path = st.sidebar.text_input(
 )
 vol_path = st.sidebar.text_input(
     "Hourly volume anomaly CSV (burst_anomaly_table)",
-    value="data/output/burst_anomaly_table.csv",
+    value="data/output/burst_anomaly_table.parquet",
 )
 resp_path = st.sidebar.text_input(
     "Hourly response-time anomaly CSV (response_anomaly_table)",
-    value="data/output/response_anomaly_table.csv",
+    value="data/output/response_anomaly_table.parquet",
 )
 
 try:
@@ -409,15 +409,16 @@ if order_y is not None:
 
 freq_vals = freq_df["freq"]
 
-fc1, fc2, fc3, fc4, fc5 = st.columns(5)
+fc1, fc2, fc3, fc4, fc5, fc6 = st.columns(6)
 fc1.metric(
     "Total calls (unique CAD)",
     f"{df_f[CAD_ID].nunique():,}" if CAD_ID in df_f.columns else "—",
 )
 fc2.metric("Avg calls / cell", f"{freq_vals.mean():.2f}" if not freq_df.empty else "—")
 fc3.metric("Median calls / cell", f"{freq_vals.median():.2f}" if not freq_df.empty else "—")
-fc4.metric("Min calls / cell", f"{freq_vals.min():.0f}" if not freq_df.empty else "—")
-fc5.metric("Max calls / cell", f"{freq_vals.max():.0f}" if not freq_df.empty else "—")
+fc4.metric("95th percentile calls / cell", f"{freq_vals.quantile(0.95):.2f}")
+fc5.metric("Min calls / cell", f"{freq_vals.min():.0f}" if not freq_df.empty else "—")
+fc6.metric("Max calls / cell", f"{freq_vals.max():.0f}" if not freq_df.empty else "—")
 
 pivot_freq = (
     freq_df.pivot_table(
