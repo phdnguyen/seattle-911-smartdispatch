@@ -4,18 +4,12 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 
-# -------------------------------------------------------------------
-# Constants
-# -------------------------------------------------------------------
 RESP = "call_sign_total_service_time_s"  # seconds
 CAD_ID = "cad_event_number"
 DATETIME_COL = "cad_event_original_time_queued_datetime"
 
 st.set_page_config(page_title="Seattle 911 Explorer", layout="wide")
 
-# -------------------------------------------------------------------
-# Helpers
-# -------------------------------------------------------------------
 MONTH_MAP = {
     1: "Jan", 2: "Feb", 3: "Mar", 4: "Apr",
     5: "May", 6: "Jun", 7: "Jul", 8: "Aug",
@@ -34,12 +28,14 @@ def order_for(colname: str):
     return None
 
 
-def apply_global_filters_to_anom(df_anom: pd.DataFrame,
-                                 sel_call: str,
-                                 sel_sect: str,
-                                 sel_neigh: str,
-                                 sel_year: int | None,
-                                 sel_month: int | None) -> pd.DataFrame:
+def apply_global_filters_to_anom(
+    df_anom: pd.DataFrame,
+    sel_call: str,
+    sel_sect: str,
+    sel_neigh: str,
+    sel_year: int | None,
+    sel_month: int | None,
+) -> pd.DataFrame:
     d = df_anom.copy()
     if "call_type" in d.columns and sel_call != "All":
         d = d[d["call_type"] == sel_call]
@@ -54,18 +50,13 @@ def apply_global_filters_to_anom(df_anom: pd.DataFrame,
     return d
 
 
-# -------------------------------------------------------------------
-# Data loaders
-# -------------------------------------------------------------------
 @st.cache_data(show_spinner=False)
 def load_main_data(path: str) -> pd.DataFrame:
     df = pd.read_csv(path)
 
-    # keep only rows with valid response time
     if RESP in df.columns:
         df = df[df[RESP].notna() & (df[RESP] > 0)]
 
-    # neighborhood / sector cleaning equivalent to your PySpark filter
     for c in ["dispatch_neighborhood", "dispatch_sector"]:
         if c in df.columns:
             df = df[df[c].notna()]
@@ -73,7 +64,6 @@ def load_main_data(path: str) -> pd.DataFrame:
     if "dispatch_neighborhood" in df.columns:
         df = df[~df["dispatch_neighborhood"].isin(["-", "Unknown", "UNKNOWN"])]
 
-    # time fields
     ts = pd.to_datetime(df[DATETIME_COL], errors="coerce")
     df = df[ts.notna()].copy()
     df["queued_ts"] = ts
@@ -89,7 +79,6 @@ def load_main_data(path: str) -> pd.DataFrame:
     )
     df["hour"] = df["queued_ts"].dt.hour
 
-    # seconds → minutes (for response time)
     if RESP in df.columns:
         df["response_time_min"] = df[RESP].astype(float) / 60.0
 
@@ -98,30 +87,20 @@ def load_main_data(path: str) -> pd.DataFrame:
 
 @st.cache_data(show_spinner=False)
 def load_volume_anomaly_data(path: str) -> pd.DataFrame:
-    """
-    Burst / volume anomaly table.
-    Expected columns at least:
-    cad_event_number, is_anomaly, date, hour, call_type_filtered,
-    total_calls, dispatch_sector, dispatch_neighborhood
-    """
     df = pd.read_csv(path)
 
-    # datetime from date + hour
     df["date"] = pd.to_datetime(df["date"], errors="coerce")
     df["hour"] = df["hour"].astype(int)
     df = df[df["date"].notna()].copy()
     df["datetime"] = df["date"] + pd.to_timedelta(df["hour"], unit="h")
 
-    # standard names
     if "call_type_filtered" in df.columns:
         df = df.rename(columns={"call_type_filtered": "call_type"})
 
-    # time breakdown
     df["Year"] = df["datetime"].dt.year
     df["Month"] = df["datetime"].dt.month
     df["DayOfWeek"] = df["datetime"].dt.day_name()
 
-    # basic cleaning of sector / neighborhood if present
     for c in ["dispatch_neighborhood", "dispatch_sector"]:
         if c in df.columns:
             df[c] = df[c].fillna("Unknown")
@@ -134,13 +113,6 @@ def load_volume_anomaly_data(path: str) -> pd.DataFrame:
 
 @st.cache_data(show_spinner=False)
 def load_response_anomaly_data(path: str) -> pd.DataFrame:
-    """
-    Response-time anomaly table.
-    Expected columns at least:
-    cad_event_number, is_anomaly, date, hour, call_type_filtered,
-    total_calls, dispatch_sector, dispatch_neighborhood,
-    avg_service_time, std_service_time
-    """
     df = pd.read_csv(path)
 
     df["date"] = pd.to_datetime(df["date"], errors="coerce")
@@ -160,21 +132,16 @@ def load_response_anomaly_data(path: str) -> pd.DataFrame:
             df[c] = df[c].fillna("Unknown")
 
     df["is_anomaly"] = df.get("is_anomaly", 0).fillna(0).astype(int)
-    df["avg_service_time"] = df["avg_service_time"].astype(float)
-    df["std_service_time"] = df["std_service_time"].astype(float)
+    df["avg_service_time"] = df["avg_service_time"].astype(float) / 60.0
+    df["std_service_time"] = df["std_service_time"].astype(float) / 60.0
 
     return df
 
 
 @st.cache_data(show_spinner=False)
 def build_volume_baseline(df: pd.DataFrame) -> pd.DataFrame:
-    """
-    Baseline statistics for hourly call volume, by:
-    call_type, Year, Month, sector, neighborhood, day-of-week, hour
-    """
     if df.empty:
         return df
-
     base = (
         df.groupby(
             [
@@ -197,13 +164,8 @@ def build_volume_baseline(df: pd.DataFrame) -> pd.DataFrame:
 
 @st.cache_data(show_spinner=False)
 def build_response_baseline(df: pd.DataFrame) -> pd.DataFrame:
-    """
-    Baseline statistics for hourly avg response time, by:
-    call_type, Year, Month, sector, neighborhood, day-of-week, hour
-    """
     if df.empty:
         return df
-
     base = (
         df.groupby(
             [
@@ -224,9 +186,6 @@ def build_response_baseline(df: pd.DataFrame) -> pd.DataFrame:
     return base
 
 
-# -------------------------------------------------------------------
-# Sidebar: file paths and global filters
-# -------------------------------------------------------------------
 st.sidebar.title("Load data")
 main_path = st.sidebar.text_input(
     "Processed CSV path (main call data)",
@@ -251,17 +210,13 @@ except Exception as e:
 
 st.sidebar.title("Filters")
 
-# --- Call type / priority options ---
 call_types = ["All"]
 if "call_type" in df.columns:
     call_types += sorted(df["call_type"].dropna().unique().tolist())
 priorities = ["All"]
 if "priority" in df.columns:
-    priorities += sorted(
-        df["priority"].dropna().unique().tolist(), key=lambda x: str(x)
-    )
+    priorities += sorted(df["priority"].dropna().unique().tolist(), key=lambda x: str(x))
 
-# --- Sector list ---
 sectors = ["All"]
 if "dispatch_sector" in df.columns:
     sectors += sorted(df["dispatch_sector"].dropna().unique().tolist())
@@ -270,7 +225,6 @@ sel_call = st.sidebar.selectbox("Call Type", call_types, index=0)
 sel_prio = st.sidebar.selectbox("Priority", priorities, index=0)
 sel_sect = st.sidebar.selectbox("Dispatch Sector", sectors, index=0)
 
-# --- Cascading neighborhood list based on selected sector ---
 if "dispatch_neighborhood" in df.columns:
     if sel_sect != "All":
         neigh_options = (
@@ -287,21 +241,16 @@ else:
 
 sel_neigh = st.sidebar.selectbox("Dispatch Neighborhood", neighborhoods, index=0)
 
-# --- Year filter ---
 years = ["All"]
 if "Year" in df.columns:
     years += sorted(df["Year"].dropna().astype(int).unique().tolist())
 sel_year_label = st.sidebar.selectbox("Year", years, index=0)
 sel_year = None if sel_year_label == "All" else int(sel_year_label)
 
-# --- Month filter ---
 months = ["All"] + [MONTH_MAP[m] for m in range(1, 13)]
 sel_month_label = st.sidebar.selectbox("Month", months, index=0)
-sel_month = None
-if sel_month_label != "All":
-    sel_month = INV_MONTH_MAP[sel_month_label]
+sel_month = None if sel_month_label == "All" else INV_MONTH_MAP[sel_month_label]
 
-# --- Metric radio for response-time explorer ---
 metric = st.sidebar.radio(
     "Metric to show in Response Time Explorer",
     ["avg", "median", "min", "max"],
@@ -315,8 +264,7 @@ metric_map = {
 }
 metric_label, agg_fn = metric_map[metric]
 
-# --- Time axes for heatmaps (unchanged) ---
-st.sidebar.title("Time Axes")
+st.sidebar.title("Heatmap Time Axes")
 axis_options = {
     "Month": "month_name",
     "Day of Week": "dow",
@@ -334,9 +282,6 @@ y_col = axis_options[y_axis_label]
 order_x = order_for(x_col)
 order_y = order_for(y_col)
 
-# -------------------------------------------------------------------
-# Apply global filters to main dataframe
-# -------------------------------------------------------------------
 df_f = df.copy()
 if sel_call != "All" and "call_type" in df_f.columns:
     df_f = df_f[df_f["call_type"] == sel_call]
@@ -355,7 +300,6 @@ if df_f.empty:
     st.warning("No rows after filters.")
     st.stop()
 
-# Also apply global filters to anomaly tables
 vol_filtered = apply_global_filters_to_anom(
     vol_df, sel_call, sel_sect, sel_neigh, sel_year, sel_month
 )
@@ -363,17 +307,15 @@ resp_filtered = apply_global_filters_to_anom(
     resp_df, sel_call, sel_sect, sel_neigh, sel_year, sel_month
 )
 
-# -------------------------------------------------------------------
-# SECTION 1: Seattle 911 – Response Time Explorer
-# -------------------------------------------------------------------
-st.title("Seattle 911 – Response Time Explorer")
-st.caption(
-    "Interactive analysis of SPD response time by incident context and time patterns (in minutes)."
-)
+st.title("Seattle 911 Dashboard")
+st.caption("Source: Seattle Open Data Portal — https://data.seattle.gov/Public-Safety/Call-Data/33kz-ixgy/about_data")
+
+
+st.header("Response Time Explorer")
+st.caption("Interactive analysis of SPD response time by incident context and time patterns (in minutes).")
 
 mins = df_f["response_time_min"].dropna()
 p95 = mins.quantile(0.95)
-
 rows_ct = len(df_f)
 
 c1, c2, c3, c4, c5, c6 = st.columns(6)
@@ -384,7 +326,6 @@ c4.metric("95th percentile (min)", f"{p95:.2f}")
 c5.metric("Min (min)", f"{mins.min():.2f}")
 c6.metric("Max (min)", f"{mins.max():.2f}")
 
-# Aggregation for response-time heatmap
 agg_df = (
     df_f.groupby([y_col, x_col], dropna=False)["response_time_min"]
     .agg([agg_fn, "count"])
@@ -421,7 +362,6 @@ fig_rt = px.imshow(
 fig_rt.update_layout(margin=dict(l=50, r=20, t=70, b=50), height=560)
 st.plotly_chart(fig_rt, use_container_width=True)
 
-# Worst-performing cell (by median response time)
 cell_stats = (
     df_f.groupby([y_col, x_col])["response_time_min"]
     .median()
@@ -441,14 +381,8 @@ with st.expander("Show aggregated table (response time)"):
 
 st.markdown("---")
 
-# -------------------------------------------------------------------
-# SECTION 2: Seattle 911 – Call Frequency Explorer
-# -------------------------------------------------------------------
-st.header("Seattle 911 – Call Frequency Explorer")
-st.caption(
-    "Unique CAD events per time cell. KPIs use aggregate statistics across cells; "
-    "the heatmap shows per-cell frequency (counts)."
-)
+st.header("Call Volume Explorer")
+st.caption("Unique CAD events per time cell. KPIs use aggregate statistics across cells; the heatmap shows per-cell frequency (counts).")
 
 freq_df = (
     df_f.groupby([y_col, x_col], dropna=False)[CAD_ID]
@@ -470,15 +404,9 @@ fc1.metric(
     f"{df_f[CAD_ID].nunique():,}" if CAD_ID in df_f.columns else "—",
 )
 fc2.metric("Avg calls / cell", f"{freq_vals.mean():.2f}" if not freq_df.empty else "—")
-fc3.metric(
-    "Median calls / cell", f"{freq_vals.median():.2f}" if not freq_df.empty else "—"
-)
-fc4.metric(
-    "Min calls / cell", f"{freq_vals.min():.0f}" if not freq_df.empty else "—"
-)
-fc5.metric(
-    "Max calls / cell", f"{freq_vals.max():.0f}" if not freq_df.empty else "—"
-)
+fc3.metric("Median calls / cell", f"{freq_vals.median():.2f}" if not freq_df.empty else "—")
+fc4.metric("Min calls / cell", f"{freq_vals.min():.0f}" if not freq_df.empty else "—")
+fc5.metric("Max calls / cell", f"{freq_vals.max():.0f}" if not freq_df.empty else "—")
 
 pivot_freq = (
     freq_df.pivot_table(index=y_col, columns=x_col, values="freq", aggfunc="sum")
@@ -509,10 +437,7 @@ with st.expander("Show aggregated table (frequency)"):
 
 st.markdown("---")
 
-# -------------------------------------------------------------------
-# SECTION 3: Incident Flow Timeline — Volume Anomalies
-# -------------------------------------------------------------------
-st.header("Incident Flow Timeline — Hourly 911 Calls (Volume Anomalies)")
+st.header("Incident Flow Timeline — Hourly 911 Call Volume Anomalies")
 
 if vol_filtered.empty:
     st.info("No volume anomaly rows for the selected filters.")
@@ -546,9 +471,6 @@ else:
 
 st.markdown("---")
 
-# -------------------------------------------------------------------
-# SECTION 4: Incident Flow Timeline — Response-Time Anomalies
-# -------------------------------------------------------------------
 st.header("Incident Flow Timeline — Slow Response Time Anomalies")
 
 if resp_filtered.empty:
@@ -562,8 +484,8 @@ else:
     r1, r2, r3, r4 = st.columns(4)
     r1.metric("Rows (hourly bins)", f"{rt_rows:,}")
     r2.metric("Anomaly hours", f"{rt_anom_hours:,}")
-    r3.metric("Avg response time (sec)", f"{rt_avg:.1f}")
-    r4.metric("95th percentile (sec)", f"{rt_p95:.1f}")
+    r3.metric("Avg response time (min)", f"{rt_avg:.2f}")
+    r4.metric("95th percentile (min)", f"{rt_p95:.2f}")
 
     fig_rt_anom = px.scatter(
         resp_filtered,
@@ -573,7 +495,7 @@ else:
         symbol="is_anomaly",
         symbol_map={0: "circle", 1: "x"},
         labels={
-            "avg_service_time": "Average response time (sec)",
+            "avg_service_time": "Average response time (min)",
             "datetime": "Date / Hour",
         },
         hover_data=["call_type", "avg_service_time", "total_calls", "is_anomaly"],
@@ -588,9 +510,6 @@ else:
 
 st.markdown("---")
 
-# -------------------------------------------------------------------
-# SECTION 5: What-If Anomaly Checker — Volume
-# -------------------------------------------------------------------
 st.header("What-If Anomaly Checker — Volume")
 
 vol_baseline = build_volume_baseline(vol_df)
@@ -605,6 +524,7 @@ else:
     )
 
     days_order = [
+        "All",
         "Monday",
         "Tuesday",
         "Wednesday",
@@ -620,7 +540,6 @@ else:
     )
 
     rows = vol_baseline.copy()
-
     if sel_call != "All":
         rows = rows[rows["call_type"] == sel_call]
     if sel_sect != "All":
@@ -631,8 +550,9 @@ else:
         rows = rows[rows["Year"] == sel_year]
     if sel_month is not None:
         rows = rows[rows["Month"] == sel_month]
-
-    rows = rows[(rows["DayOfWeek"] == ctx_dow) & (rows["hour"] == ctx_hour)]
+    if ctx_dow != "All":
+        rows = rows[rows["DayOfWeek"] == ctx_dow]
+    rows = rows[rows["hour"] == ctx_hour]
 
     if rows.empty:
         st.warning("No historical baseline for this context yet.")
@@ -660,13 +580,12 @@ else:
         else:
             st.success("Within the **normal range** for call volume in this context.")
 
-        # distribution plot based on filtered volume data
         hist_data = apply_global_filters_to_anom(
             vol_df, sel_call, sel_sect, sel_neigh, sel_year, sel_month
         )
-        hist_data = hist_data[
-            (hist_data["DayOfWeek"] == ctx_dow) & (hist_data["hour"] == ctx_hour)
-        ]["total_calls"].dropna()
+        if ctx_dow != "All":
+            hist_data = hist_data[hist_data["DayOfWeek"] == ctx_dow]
+        hist_data = hist_data[hist_data["hour"] == ctx_hour]["total_calls"].dropna()
 
         if not hist_data.empty:
             fig_hist_vol = px.histogram(
@@ -686,9 +605,6 @@ else:
 
 st.markdown("---")
 
-# -------------------------------------------------------------------
-# SECTION 6: What-If Anomaly Checker — Response Time
-# -------------------------------------------------------------------
 st.header("What-If Anomaly Checker — Response Time")
 
 resp_baseline = build_response_baseline(resp_df)
@@ -702,7 +618,8 @@ else:
         f"**Year:** `{sel_year_label}` • **Month:** `{sel_month_label}`"
     )
 
-    days_order = [
+    days_order_rt = [
+        "All",
         "Monday",
         "Tuesday",
         "Wednesday",
@@ -711,17 +628,16 @@ else:
         "Saturday",
         "Sunday",
     ]
-    ctx_dow_rt = st.selectbox("Day of week (response time)", days_order, index=0)
+    ctx_dow_rt = st.selectbox("Day of week (response time)", days_order_rt, index=0)
     ctx_hour_rt = st.slider("Hour of day (response time)", 0, 23, 12)
     observed_rt = st.number_input(
-        "Observed average response time this hour (seconds)",
+        "Observed average response time this hour (minutes)",
         min_value=0.0,
-        value=600.0,
-        step=30.0,
+        value=10.0,
+        step=0.5,
     )
 
     rows_rt = resp_baseline.copy()
-
     if sel_call != "All":
         rows_rt = rows_rt[rows_rt["call_type"] == sel_call]
     if sel_sect != "All":
@@ -732,10 +648,9 @@ else:
         rows_rt = rows_rt[rows_rt["Year"] == sel_year]
     if sel_month is not None:
         rows_rt = rows_rt[rows_rt["Month"] == sel_month]
-
-    rows_rt = rows_rt[
-        (rows_rt["DayOfWeek"] == ctx_dow_rt) & (rows_rt["hour"] == ctx_hour_rt)
-    ]
+    if ctx_dow_rt != "All":
+        rows_rt = rows_rt[rows_rt["DayOfWeek"] == ctx_dow_rt]
+    rows_rt = rows_rt[rows_rt["hour"] == ctx_hour_rt]
 
     if rows_rt.empty:
         st.warning("No historical baseline for this response-time context yet.")
@@ -747,8 +662,8 @@ else:
         z_rt = (observed_rt - mu_rt) / sigma_rt
 
         c1, c2, c3 = st.columns(3)
-        c1.metric("Expected avg response (μ, sec)", f"{mu_rt:.1f}")
-        c2.metric("Std dev (σ, sec)", f"{sigma_rt:.1f}")
+        c1.metric("Expected avg response (μ, min)", f"{mu_rt:.2f}")
+        c2.metric("Std dev (σ, min)", f"{sigma_rt:.2f}")
         c3.metric("Z-score", f"{z_rt:.2f}")
 
         if z_rt >= 3:
@@ -757,9 +672,7 @@ else:
                 "given historical patterns for this context."
             )
         elif z_rt >= 2:
-            st.warning(
-                "This response looks **slower than usual** (z between 2 and 3)."
-            )
+            st.warning("This response looks **slower than usual** (z between 2 and 3).")
         elif z_rt <= -2:
             st.success(
                 "This response is **faster than historical average** (z ≤ -2) "
@@ -771,15 +684,15 @@ else:
         hist_rt = apply_global_filters_to_anom(
             resp_df, sel_call, sel_sect, sel_neigh, sel_year, sel_month
         )
-        hist_rt = hist_rt[
-            (hist_rt["DayOfWeek"] == ctx_dow_rt) & (hist_rt["hour"] == ctx_hour_rt)
-        ]["avg_service_time"].dropna()
+        if ctx_dow_rt != "All":
+            hist_rt = hist_rt[hist_rt["DayOfWeek"] == ctx_dow_rt]
+        hist_rt = hist_rt[hist_rt["hour"] == ctx_hour_rt]["avg_service_time"].dropna()
 
         if not hist_rt.empty:
             fig_hist_rt = px.histogram(
                 hist_rt,
                 nbins=20,
-                labels={"value": "Historical avg response time (sec)"},
+                labels={"value": "Historical avg response time (min)"},
                 title="Historical distribution of avg response time for this context",
             )
             fig_hist_rt.add_vline(
