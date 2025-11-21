@@ -383,7 +383,7 @@ if not cell_stats.empty:
         f"{y_axis_label}={worst[y_col]}, {x_axis_label}={worst[x_col]} "
         f"({worst['median_rt']:.1f} min median)"
     )
-    st.caption(f"**Worst median-response cell:** {worst_label}")
+    # st.caption(f"**Worst median-response cell:** {worst_label}")
 
 with st.expander("Show aggregated table (response time)"):
     st.dataframe(agg_df.sort_values("value", ascending=False), width="stretch")
