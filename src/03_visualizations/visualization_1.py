@@ -13,7 +13,7 @@ st.set_page_config(page_title="Seattle 911 Explorer", layout="wide")
 MONTH_MAP = {
     1: "Jan", 2: "Feb", 3: "Mar", 4: "Apr",
     5: "May", 6: "Jun", 7: "Jul", 8: "Aug",
-    9: "Sep", 10: "Oct", 11: "Nov", 12: "Dec",
+    9: "Sep", 10: "Oct"
 }
 INV_MONTH_MAP = {v: k for k, v in MONTH_MAP.items()}
 
@@ -69,7 +69,7 @@ def load_main_data(path: str) -> pd.DataFrame:
     df["queued_ts"] = ts
 
     df["Year"] = df["queued_ts"].dt.year
-    df = df[df["Year"] == 2024]
+    df = df[df["Year"] == 2025]
     df["Month"] = df["queued_ts"].dt.month
     df["month_name"] = df["Month"].map(MONTH_MAP)
     df["dow_num"] = df["queued_ts"].dt.dayofweek + 1
@@ -99,7 +99,7 @@ def load_volume_anomaly_data(path: str) -> pd.DataFrame:
         df = df.rename(columns={"call_type_filtered": "call_type"})
 
     df["Year"] = df["datetime"].dt.year
-    df = df[df["Year"] == 2024]
+    df = df[df["Year"] == 2025]
     df["Month"] = df["datetime"].dt.month
     df["DayOfWeek"] = df["datetime"].dt.day_name()
 
@@ -126,7 +126,7 @@ def load_response_anomaly_data(path: str) -> pd.DataFrame:
         df = df.rename(columns={"call_type_filtered": "call_type"})
 
     df["Year"] = df["datetime"].dt.year
-    df = df[df["Year"] == 2024]
+    df = df[df["Year"] == 2025]
     df["Month"] = df["datetime"].dt.month
     df["DayOfWeek"] = df["datetime"].dt.day_name()
 
@@ -312,7 +312,7 @@ resp_filtered = apply_global_filters_to_anom(
     resp_df, sel_call, sel_sect, sel_neigh, sel_year, sel_month
 )
 
-st.title("Seattle 911 Dashboard Demo (2024 Data Only)")
+st.title("Seattle 911 Dashboard Demo (2025 Data Only)")
 st.caption(
     "Source: Seattle Open Data Portal — https://data.seattle.gov/Public-Safety/Call-Data/33kz-ixgy/about_data"
 )
