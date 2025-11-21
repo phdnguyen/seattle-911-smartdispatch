@@ -52,7 +52,7 @@ def apply_global_filters_to_anom(
 
 @st.cache_data(show_spinner=False)
 def load_main_data(path: str) -> pd.DataFrame:
-    df = pd.read_csv(path)
+    df = pd.read_parquet(path)
 
     if RESP in df.columns:
         df = df[df[RESP].notna() & (df[RESP] > 0)]
@@ -191,7 +191,7 @@ def build_response_baseline(df: pd.DataFrame) -> pd.DataFrame:
 st.sidebar.title("Load data")
 main_path = st.sidebar.text_input(
     "Processed CSV path (main call data)",
-    value="data/processed/calldata_20251019_processed_v4_small.csv",
+    value="data/processed/calldata_20251019_processed_v4_small.parquet",
 )
 vol_path = st.sidebar.text_input(
     "Hourly volume anomaly CSV (burst_anomaly_table)",
