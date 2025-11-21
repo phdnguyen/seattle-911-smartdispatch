@@ -385,8 +385,8 @@ if not cell_stats.empty:
     )
     st.caption(f"**Worst median-response cell:** {worst_label}")
 
-with st.expander("Show aggregated table (response time)"):
-    st.dataframe(agg_df.sort_values("value", ascending=False), width="stretch")
+# with st.expander("Show aggregated table (response time)"):
+#     st.dataframe(agg_df.sort_values("value", ascending=False), width="stretch")
 
 st.markdown("---")
 
@@ -450,8 +450,8 @@ fig_freq = px.imshow(
 fig_freq.update_layout(margin=dict(l=50, r=20, t=70, b=50), height=560)
 st.plotly_chart(fig_freq, width="stretch")
 
-with st.expander("Show aggregated table (frequency)"):
-    st.dataframe(freq_df.sort_values("freq", ascending=False), width="stretch")
+# with st.expander("Show aggregated table (frequency)"):
+#     st.dataframe(freq_df.sort_values("freq", ascending=False), width="stretch")
 
 st.markdown("---")
 
@@ -484,8 +484,8 @@ else:
     fig_vol.update_layout(height=520, margin=dict(l=40, r=20, t=70, b=60))
     st.plotly_chart(fig_vol, width="stretch")
 
-    with st.expander("Show volume anomaly table"):
-        st.dataframe(vol_filtered.sort_values("datetime"), width="stretch")
+    # with st.expander("Show volume anomaly table"):
+    #     st.dataframe(vol_filtered.sort_values("datetime"), width="stretch")
 
 st.markdown("---")
 
@@ -523,8 +523,8 @@ else:
     fig_rt_anom.update_layout(height=520, margin=dict(l=40, r=20, t=70, b=60))
     st.plotly_chart(fig_rt_anom, width="stretch")
 
-    with st.expander("Show response-time anomaly table"):
-        st.dataframe(resp_filtered.sort_values("datetime"), width="stretch")
+    # with st.expander("Show response-time anomaly table"):
+    #     st.dataframe(resp_filtered.sort_values("datetime"), width="stretch")
 
 st.markdown("---")
 
