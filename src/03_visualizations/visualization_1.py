@@ -252,7 +252,7 @@ if "Year" in df.columns:
 sel_year_label = st.sidebar.selectbox("Year", years, index=0)
 sel_year = None if sel_year_label == "All" else int(sel_year_label)
 
-months = ["All"] + [MONTH_MAP[m] for m in range(1, 13)]
+months = ["All"] + [MONTH_MAP[m] for m in range(1, 11)]
 sel_month_label = st.sidebar.selectbox("Month", months, index=0)
 sel_month = None if sel_month_label == "All" else INV_MONTH_MAP[sel_month_label]
 
