@@ -395,7 +395,7 @@ st.markdown("---")
 
 st.header("Call Volume Explorer")
 st.caption(
-    "Unique CAD events per time cell. KPIs use aggregate statistics across cells; the heatmap shows per-cell frequency (counts)."
+    "Unique CAD events per time cell. KPIs use aggregate statistics across cells; the heatmap shows per-cell volume (counts)."
 )
 
 freq_df = (
@@ -436,7 +436,7 @@ pivot_freq = (
 )
 
 title_freq = (
-    f"Call Frequency (unique CAD per cell) • "
+    f"Call Volume (unique CAD per cell) • "
     f"CallType: {sel_call} • Priority: {sel_prio} • "
     f"Sector: {sel_sect} • Neighborhood: {sel_neigh} • "
     f"Year: {sel_year_label} • Month: {sel_month_label}"
