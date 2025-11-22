@@ -10,6 +10,17 @@ DATETIME_COL = "cad_event_original_time_queued_datetime"
 
 st.set_page_config(page_title="Seattle 911 Explorer", layout="wide")
 
+# ======== RESTART APP CONTROL ========
+st.sidebar.markdown(
+    "<small>Use this if the dashboard slows down or stops responding.</small>",
+    unsafe_allow_html=True,
+)
+
+restart = st.sidebar.button("🔁 Click to Restart", type="primary")
+if restart:
+    st.cache_data.clear()
+    st.rerun()
+# =====================================
 MONTH_MAP = {
     1: "Jan", 2: "Feb", 3: "Mar", 4: "Apr",
     5: "May", 6: "Jun", 7: "Jul", 8: "Aug",
@@ -69,7 +80,6 @@ def load_main_data(path: str) -> pd.DataFrame:
     df["queued_ts"] = ts
 
     df["Year"] = df["queued_ts"].dt.year
-    df = df[df["Year"] == 2025]
     df["Month"] = df["queued_ts"].dt.month
     df["month_name"] = df["Month"].map(MONTH_MAP)
     df["dow_num"] = df["queued_ts"].dt.dayofweek + 1
@@ -80,11 +90,24 @@ def load_main_data(path: str) -> pd.DataFrame:
     )
     df["hour"] = df["queued_ts"].dt.hour
 
+    df = df[df['Year']==2025]
+
     if RESP in df.columns:
         df["response_time_min"] = df[RESP].astype(float) / 60.0
 
-    return df
+    cat_cols = [
+        "call_type",
+        "priority",
+        "dispatch_sector",
+        "dispatch_neighborhood",
+        "month_name",
+        "dow",
+    ]
+    for c in cat_cols:
+        if c in df.columns:
+            df[c] = df[c].astype("category")
 
+    return df
 
 @st.cache_data(show_spinner=False)
 def load_volume_anomaly_data(path: str) -> pd.DataFrame:
@@ -99,9 +122,10 @@ def load_volume_anomaly_data(path: str) -> pd.DataFrame:
         df = df.rename(columns={"call_type_filtered": "call_type"})
 
     df["Year"] = df["datetime"].dt.year
-    df = df[df["Year"] == 2025]
     df["Month"] = df["datetime"].dt.month
     df["DayOfWeek"] = df["datetime"].dt.day_name()
+
+    df = df[df['Year']==2025]
 
     for c in ["dispatch_neighborhood", "dispatch_sector"]:
         if c in df.columns:
@@ -110,8 +134,17 @@ def load_volume_anomaly_data(path: str) -> pd.DataFrame:
     df["is_anomaly"] = df.get("is_anomaly", 0).fillna(0).astype(int)
     df["total_calls"] = df["total_calls"].fillna(0).astype(float)
 
-    return df
+    cat_cols = [
+        "call_type",
+        "dispatch_sector",
+        "dispatch_neighborhood",
+        "DayOfWeek",
+    ]
+    for c in cat_cols:
+        if c in df.columns:
+            df[c] = df[c].astype("category")
 
+    return df
 
 @st.cache_data(show_spinner=False)
 def load_response_anomaly_data(path: str) -> pd.DataFrame:
@@ -126,9 +159,10 @@ def load_response_anomaly_data(path: str) -> pd.DataFrame:
         df = df.rename(columns={"call_type_filtered": "call_type"})
 
     df["Year"] = df["datetime"].dt.year
-    df = df[df["Year"] == 2025]
     df["Month"] = df["datetime"].dt.month
     df["DayOfWeek"] = df["datetime"].dt.day_name()
+
+    df = df[df['Year']==2025]
 
     for c in ["dispatch_neighborhood", "dispatch_sector"]:
         if c in df.columns:
@@ -137,6 +171,16 @@ def load_response_anomaly_data(path: str) -> pd.DataFrame:
     df["is_anomaly"] = df.get("is_anomaly", 0).fillna(0).astype(int)
     df["avg_service_time"] = df["avg_service_time"].astype(float) / 60.0
     df["std_service_time"] = df["std_service_time"].astype(float) / 60.0
+
+    cat_cols = [
+        "call_type",
+        "dispatch_sector",
+        "dispatch_neighborhood",
+        "DayOfWeek",
+    ]
+    for c in cat_cols:
+        if c in df.columns:
+            df[c] = df[c].astype("category")
 
     return df
 
