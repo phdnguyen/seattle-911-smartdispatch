@@ -10,21 +10,9 @@ DATETIME_COL = "cad_event_original_time_queued_datetime"
 
 st.set_page_config(page_title="Seattle 911 Explorer", layout="wide")
 
-# ======== RESTART APP CONTROL ========
-st.sidebar.markdown(
-    "<small>Use this if the dashboard slows down or stops responding.</small>",
-    unsafe_allow_html=True,
-)
-
-restart = st.sidebar.button("🔁 Click to Restart", type="primary")
-if restart:
-    st.cache_data.clear()
-    st.rerun()
-# =====================================
 MONTH_MAP = {
     1: "Jan", 2: "Feb", 3: "Mar", 4: "Apr",
-    5: "May", 6: "Jun", 7: "Jul", 8: "Aug",
-    9: "Sep", 10: "Oct"
+    5: "May", 6: "Jun"
 }
 INV_MONTH_MAP = {v: k for k, v in MONTH_MAP.items()}
 
@@ -296,7 +284,7 @@ if "Year" in df.columns:
 sel_year_label = st.sidebar.selectbox("Year", years, index=0)
 sel_year = None if sel_year_label == "All" else int(sel_year_label)
 
-months = ["All"] + [MONTH_MAP[m] for m in range(1, 11)]
+months = ["All"] + [MONTH_MAP[m] for m in range(1, 7)]
 sel_month_label = st.sidebar.selectbox("Month", months, index=0)
 sel_month = None if sel_month_label == "All" else INV_MONTH_MAP[sel_month_label]
 
@@ -356,7 +344,7 @@ resp_filtered = apply_global_filters_to_anom(
     resp_df, sel_call, sel_sect, sel_neigh, sel_year, sel_month
 )
 
-st.title("Seattle 911 Dashboard Demo (2025 Data Only)")
+st.title("Seattle 911 Dashboard Demo (2025 Jan-Jun Only)")
 st.caption(
     "Source: Seattle Open Data Portal — https://data.seattle.gov/Public-Safety/Call-Data/33kz-ixgy/about_data"
 )
@@ -666,6 +654,10 @@ else:
                 annotation_text="Observed",
                 annotation_position="top right",
             )
+            fig_hist_vol.update_traces(hoverinfo="skip",
+                                        hovertemplate=None
+            )
+
             st.plotly_chart(fig_hist_vol, width="stretch")
 
 st.markdown("---")
@@ -767,4 +759,8 @@ else:
                 annotation_text="Observed",
                 annotation_position="top right",
             )
+            fig_hist_rt.update_traces(hoverinfo="skip",
+                                       hovertemplate=None
+            )
+
             st.plotly_chart(fig_hist_rt, width="stretch")
