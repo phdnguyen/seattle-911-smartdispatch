@@ -1,4 +1,4 @@
-# streamlit run visualization_1.py
+# streamlit run src/03_visualizations/visualization_1.py
 import os
 import streamlit as st
 import pandas as pd
@@ -392,7 +392,7 @@ st.markdown("---")
 
 st.header("Call Volume Explorer")
 st.caption(
-    "Unique CAD events per time cell. KPIs use aggregate statistics across cells; the heatmap shows per-cell frequency (counts)."
+    "Unique CAD events per time cell. KPIs use aggregate statistics across cells; the heatmap shows per-cell volume (counts)."
 )
 
 freq_df = (
@@ -433,7 +433,7 @@ pivot_freq = (
 )
 
 title_freq = (
-    f"Call Frequency (unique CAD per cell) • "
+    f"Call Volume (unique CAD per cell) • "
     f"CallType: {sel_call} • Priority: {sel_prio} • "
     f"Sector: {sel_sect} • Neighborhood: {sel_neigh} • "
     f"Year: {sel_year_label} • Month: {sel_month_label}"
@@ -450,7 +450,7 @@ fig_freq = px.imshow(
 fig_freq.update_layout(margin=dict(l=50, r=20, t=70, b=50), height=560)
 st.plotly_chart(fig_freq, width="stretch")
 
-with st.expander("Show aggregated table (frequency)"):
+with st.expander("Show aggregated table (volume)"):
     st.dataframe(freq_df.sort_values("freq", ascending=False), width="stretch")
 
 st.markdown("---")
