@@ -78,24 +78,13 @@ def load_main_data(path: str) -> pd.DataFrame:
     )
     df["hour"] = df["queued_ts"].dt.hour
 
-    df = df[df['Year']==2025]
+    df = df[(df["Year"] == 2025) & (df["Month"].isin(range(1, 7)))]
 
     if RESP in df.columns:
         df["response_time_min"] = df[RESP].astype(float) / 60.0
 
-    cat_cols = [
-        "call_type",
-        "priority",
-        "dispatch_sector",
-        "dispatch_neighborhood",
-        "month_name",
-        "dow",
-    ]
-    for c in cat_cols:
-        if c in df.columns:
-            df[c] = df[c].astype("category")
-
     return df
+
 
 @st.cache_data(show_spinner=False)
 def load_volume_anomaly_data(path: str) -> pd.DataFrame:
@@ -113,7 +102,7 @@ def load_volume_anomaly_data(path: str) -> pd.DataFrame:
     df["Month"] = df["datetime"].dt.month
     df["DayOfWeek"] = df["datetime"].dt.day_name()
 
-    df = df[df['Year']==2025]
+    df = df[(df["Year"] == 2025) & (df["Month"].isin(range(1, 7)))]
 
     for c in ["dispatch_neighborhood", "dispatch_sector"]:
         if c in df.columns:
@@ -122,17 +111,8 @@ def load_volume_anomaly_data(path: str) -> pd.DataFrame:
     df["is_anomaly"] = df.get("is_anomaly", 0).fillna(0).astype(int)
     df["total_calls"] = df["total_calls"].fillna(0).astype(float)
 
-    cat_cols = [
-        "call_type",
-        "dispatch_sector",
-        "dispatch_neighborhood",
-        "DayOfWeek",
-    ]
-    for c in cat_cols:
-        if c in df.columns:
-            df[c] = df[c].astype("category")
-
     return df
+
 
 @st.cache_data(show_spinner=False)
 def load_response_anomaly_data(path: str) -> pd.DataFrame:
@@ -150,7 +130,7 @@ def load_response_anomaly_data(path: str) -> pd.DataFrame:
     df["Month"] = df["datetime"].dt.month
     df["DayOfWeek"] = df["datetime"].dt.day_name()
 
-    df = df[df['Year']==2025]
+    df = df[(df["Year"] == 2025) & (df["Month"].isin(range(1, 7)))]
 
     for c in ["dispatch_neighborhood", "dispatch_sector"]:
         if c in df.columns:
@@ -159,16 +139,6 @@ def load_response_anomaly_data(path: str) -> pd.DataFrame:
     df["is_anomaly"] = df.get("is_anomaly", 0).fillna(0).astype(int)
     df["avg_service_time"] = df["avg_service_time"].astype(float) / 60.0
     df["std_service_time"] = df["std_service_time"].astype(float) / 60.0
-
-    cat_cols = [
-        "call_type",
-        "dispatch_sector",
-        "dispatch_neighborhood",
-        "DayOfWeek",
-    ]
-    for c in cat_cols:
-        if c in df.columns:
-            df[c] = df[c].astype("category")
 
     return df
 
