@@ -1,24 +1,28 @@
 import os
 import gdown
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[2]
 
 RAW_FILES = {
-    "data/raw/Call_Data_20251019.csv": "15t0l4uik1-QLTu2lVjKJ6xiOsNqhFdG7",
-    "data/processed/calldata_20251019_processed_v4.csv": "1B8q53jodSzsQ3h1hE93bFRqax2DBZk57"
+    ROOT / "data/raw/Call_Data_20251019.csv": "15t0l4uik1-QLTu2lVjKJ6xiOsNqhFdG7",
+    ROOT / "data/processed/calldata_20251019_processed_v4.csv": "1B8q53jodSzsQ3h1hE93bFRqax2DBZk57",
 }
 
 OUTPUT_FILES = {
-    "data/output/calldata_20251019_processed_v4.parquet": "1AGf8FO7J4CCsokGEGUlN2Vq8nxWkSXXT",
-    "data/output/burst_anomaly_table.parquet": "1MZcqJe4D_zLmcwaFGiV_bMqjQFv5ZALx",
-    "data/output/response_anomaly_table.parquet": "1MomO8_UcOT1aK8XHYNMyWYiBIYqjpRw4",
+    ROOT / "data/output/calldata_20251019_processed_v4.parquet": "1AGf8FO7J4CCsokGEGUlN2Vq8nxWkSXXT",
+    ROOT / "data/output/burst_anomaly_table.parquet": "1MZcqJe4D_zLmcwaFGiV_bMqjQFv5ZALx",
+    ROOT / "data/output/response_anomaly_table.parquet": "1MomO8_UcOT1aK8XHYNMyWYiBIYqjpRw4",
 }
-
 
 def download_group(files: dict):
     for local_path, file_id in files.items():
-        os.makedirs(os.path.dirname(local_path), exist_ok=True)
+        local_path = Path(local_path)
+        os.makedirs(local_path.parent, exist_ok=True)
         url = f"https://drive.google.com/uc?id={file_id}"
+
         print(f"\nDownloading to {local_path} ...")
-        gdown.download(url, local_path, quiet=False)
+        gdown.download(url, str(local_path), quiet=False)
 
 
 def main():
@@ -32,7 +36,7 @@ def main():
     elif choice == "2":
         download_group(OUTPUT_FILES)
     else:
-        print("Invalid choice, nothing downloaded.")
+        print("Invalid choice — nothing downloaded.")
 
 
 if __name__ == "__main__":
