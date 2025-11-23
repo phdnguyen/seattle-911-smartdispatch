@@ -10,21 +10,22 @@ The dataset is publicly available on the [Seattle Open Data Portal](https://data
 
 Raw data used for this project is last updated on October 18th, 2025 and has 10.5M rows.
 
+Processed data are available here: [Google Drive folder](https://drive.google.com/drive/folders/1-Ru7AYH0v-C2cL8U40_JK-a8BCmE77qt?usp=sharing)
+
 ## Environment Set-up
 conda create --name `<env>` --file environment.yml
 
 ## Directory Tree
 
 ```
-.
 ├── data
 │   ├── output
 │   │   ├── burst_anomaly_table.csv
 │   │   ├── burst_anomaly_table.parquet
+│   │   ├── calldata_20251019_processed_v4.parquet
 │   │   ├── response_anomaly_table.csv
 │   │   └── response_anomaly_table.parquet
 │   ├── processed
-│   │   ├── calldata_20251019_processed_v4_small.csv
 │   │   └── calldata_20251019_processed_v4.csv
 │   └── raw
 │   │   └── Call_Data_20251019.csv
@@ -34,6 +35,8 @@ conda create --name `<env>` --file environment.yml
 │   └── xgb_feature_importance.png
 ├── README.md
 └── src
+    ├── 00_setup
+    │   └── download_data.py
     ├── 01_preprocessing
     │   └── preprocessing.sql
     ├── 02_models
