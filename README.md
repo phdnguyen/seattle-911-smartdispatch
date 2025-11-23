@@ -13,7 +13,7 @@ Raw data used for this project is last updated on October 18th, 2025 and has 10.
 Processed data are available here: [Google Drive folder](https://drive.google.com/drive/folders/1-Ru7AYH0v-C2cL8U40_JK-a8BCmE77qt?usp=sharing)
 
 ## Environment Set-up
-conda create --name `<env>` --file environment.yml
+conda env create -f environment.yml
 
 ## Directory Tree
 
