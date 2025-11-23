@@ -12,7 +12,7 @@ https://seattle-911.streamlit.app/
 2. INSTALLATION
 Create the environment using the provided environment.yml file:
 
-conda create --name <env> --file environment.yml
+conda env create -f environment.yml
 conda activate <env>
 
 This installs Streamlit, PySpark, Pandas, gdown, and all required dependencies.
